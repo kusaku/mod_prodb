@@ -1,0 +1,7 @@
+{
+  "username": "wot_observer_user",
+  "password": "WoT123",
+  "host": "92.223.123.132",
+  "port": 5672,
+  "exchange": "wot_observer_exchange"
+}

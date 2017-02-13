@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="prodb_mod" default="all">
+
+    <property file="build.properties"/>
+
+    <condition property="python" value="${env.PYTHONHOME}/python.exe">
+        <not>
+            <isset property="python"/>
+        </not>
+    </condition>
+
+    <condition property="wot.location" value="C:/Games/World_of_Tanks_CT">
+        <not>
+            <isset property="wot.location"/>
+        </not>
+    </condition>
+
+    <condition property="wot.version" value="0.9.12 Common Test">
+        <not>
+            <isset property="wot.version"/>
+        </not>
+    </condition>
+
+    <condition property="wot.version.short" value="CT 0.9.12">
+        <not>
+            <isset property="wot.version.short"/>
+        </not>
+    </condition>
+
+    <patternset id="ignored.files">
+        <exclude name="**/*.hprof/**"/>
+        <exclude name="**/*.pyc/**"/>
+        <exclude name="**/*.pyo/**"/>
+        <exclude name="**/*.rbc/**"/>
+        <exclude name="**/*~/**"/>
+        <exclude name="**/.DS_Store/**"/>
+        <exclude name="**/Thumbs.db/**"/>
+        <exclude name="**/.bundle/**"/>
+        <exclude name="**/.git/**"/>
+        <exclude name="**/.hg/**"/>
+        <exclude name="**/.svn/**"/>
+        <exclude name="**/.tox/**"/>
+        <exclude name="**/CVS/**"/>
+        <exclude name="**/RCS/**"/>
+        <exclude name="**/SCCS/**"/>
+        <exclude name="**/__pycache__/**"/>
+        <exclude name="**/_svn/**"/>
+        <exclude name="**/rcs/**"/>
+        <exclude name="**/vssver.scc/**"/>
+        <exclude name="**/vssver2.scc/**"/>
+    </patternset>
+
+    <tstamp>
+        <format property="DATE" pattern="yyMMdd" locale="en,US"/>
+    </tstamp>
+
+    <tstamp>
+        <format property="TIME" pattern="HHmmss" locale="en,US"/>
+    </tstamp>
+
+    <property name="DATETIME" value="${DATE}-${TIME}"/>
+
+    <property name="prodb_mod.src" value="${basedir}/mod_prodb"/>
+    <property name="prodb_mod.out" value="${basedir}/out"/>
+
+    <target name="clear">
+        <delete dir="${prodb_mod.src}" includes="**/*.pyc"/>
+        <delete dir="${prodb_mod.out}"/>
+    </target>
+
+    <target name="build">
+        <exec dir="${prodb_mod.src}" executable="${python}" failonerror="true">
+            <arg line="-m compileall ${prodb_mod.src}"/>
+        </exec>
+
+        <copy todir="${prodb_mod.out}/res_mods/" file="${prodb_mod.src}/server.json"/>
+        <!--<copy todir="${prodb_mod.out}/res_mods/" file="${prodb_mod.src}/logger"/>-->
+
+        <copy todir="${prodb_mod.out}/res_mods/${wot.version}/scripts">
+            <fileset dir="${prodb_mod.src}">
+                <exclude name="client/gui/mods/__init__.pyc"/>
+                <include name="**/*.pyc"/>
+            </fileset>
+        </copy>
+    </target>
+
+    <target name="deploy" depends="build">
+        <copy todir="${wot.location}">
+            <fileset dir="${prodb_mod.out}"/>
+        </copy>
+    </target>
+
+    <target name="zip" depends="build">
+        <zip destfile="${basedir}/${DATETIME} Logger Mod ${wot.version.short}.zip" level="9">
+            <zipfileset dir="${prodb_mod.out}"/>
+        </zip>
+    </target>
+
+    <target name="all" depends="clear,zip"/>
+
+</project>
