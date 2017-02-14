@@ -28,11 +28,6 @@ class App(metaclass=Singleton):
     inputq = queue.Queue()
     outputq = queue.Queue()
 
-    # def __call__(cls, *args, **kwargs):
-    #     if cls._instance is None:
-    #         cls._instance = super(App, cls).__call__(*args, **kwargs)
-    #     return cls._instance
-
     def __init__(self):
         signal.signal(signal.SIGBREAK, lambda *args: restart_event.set())
         signal.signal(signal.SIGINT, lambda *args: stop_event.set())

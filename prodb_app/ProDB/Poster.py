@@ -8,6 +8,8 @@ import requests
 from ProDB import App
 from ProDB import logger
 
+MAX_WORKERS = 10
+
 
 class POST_TYPE:
     STATS = 'stats'
@@ -34,36 +36,38 @@ class Poster(object):
 
     def thread(self):
         logger.debug('Started')
-
-        # executor = ProcessPoolExecutor(max_workers=3)
-        executor = ThreadPoolExecutor(max_workers=3)
-
+        executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
+        # executor = ProcessPoolExecutor(max_workers=MAX_WORKERS)
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
+        loop.set_default_executor(executor)
         try:
-            loop.run_until_complete(self._poster(executor))
+            loop.run_until_complete(self._poster())
         finally:
             loop.close()
-
         logger.debug('Finished')
 
-    async def _poster(self, executor):
-        futures = set()
+    async def _poster(self):
         loop = asyncio.get_event_loop()
-
-        while not self._stop_event.wait(0.1):
-            post_data = 'aaaa'  # self._inputq.get()
-            if post_data is None:
-                continue
-
-            future = loop.run_in_executor(executor, _post, post_data)
-            futures.add(future)
-            # self._inputq.task_done()
-
-        for future in futures:
-            future.cancel()
-            await future
+        while not self._stop_event.isSet():
+            futures = set()
+            while not self._stop_event.isSet() and len(futures) < MAX_WORKERS:
+                post_data = self._inputq.get()
+                if post_data is None:
+                    continue
+                try:
+                    future = loop.run_in_executor(None, _post, post_data)
+                except:
+                    continue
+                futures.add(future)
+                self._inputq.task_done()
+            gathered_future = asyncio.gather(*futures, return_exceptions=True)
+            if not self._stop_event.isSet():
+                # logger.warn(await gathered_future)
+                await gathered_future
+            else:
+                gathered_future.cancel()
 
 
 def _post(data):
-    requests.post('127.0.0.1', data)
+    return requests.post('http://127.0.0.1', data)
