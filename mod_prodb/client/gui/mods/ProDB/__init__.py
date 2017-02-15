@@ -1,5 +1,5 @@
-from . import Logger
+from . import ProDB
 
-g_logger = Logger.Logger()
+g_logger = ProDB.ProDB()
 
 

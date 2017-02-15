@@ -31,4 +31,4 @@ def LOG_ERROR(*args):
 
 
 _logLock = threading.Lock()
-_logFile = open('Logger.log', 'at', 0)
+_logFile = open('ProDB.log', 'at', 0)

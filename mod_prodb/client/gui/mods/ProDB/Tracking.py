@@ -6,7 +6,9 @@ import GUI
 from Event import Event
 from PlayerEvents import g_playerEvents, defaultdict
 from gui.InputHandler import g_instance
-from gui.battle_control.battle_constants import PERSONAL_EFFICIENCY_TYPE, SHELL_SET_RESULT
+from gui.battle_control.arena_info.arena_vos import isObserver
+from gui.battle_control.battle_constants import PERSONAL_EFFICIENCY_TYPE, SHELL_SET_RESULT, VEHICLE_VIEW_STATE, \
+    FEEDBACK_EVENT_ID
 from helpers import dependency
 from helpers.CallbackDelayer import CallbackDelayer
 from skeletons.gui.battle_session import IBattleSessionProvider
@@ -14,13 +16,12 @@ from . import Log
 from . import Channel
 
 UPDATE_GUI_INTERVAL = 0.0
-
-current_shell_qauntity = defaultdict(int)
+UPDATE_STATS_INTERVAL = 3.0
+UPDATE_ARENA_INTERVAL = 1.0
 
 class MSG_TYPE:
     ARENA = 'arena'
     STATS = 'stats'
-    FINISH = 'finish'
 
 class PlayerStats(defaultdict):
     DAMAGE_DONE = 'DAMAGE_DONE'
@@ -51,7 +52,6 @@ class Tracking(CallbackDelayer):
     vid = property(lambda self: getattr(self.player, 'playerVehicleID', None))
     cid = property(lambda self: self.vehicle.get('accountDBID'))
 
-    config = None
     trackers = dict()
     sessionProvider = dependency.descriptor(IBattleSessionProvider)
 
@@ -70,16 +70,20 @@ class Tracking(CallbackDelayer):
 
     @property
     def players(self):
-        return {
-            vehicle.get('accountDBID'): {
-                'vid': vid,
-                'name': vehicle.get('name'),
-                'vehicle_name': vehicle.get('vehicleType').name.rpartition(':')[-1],
-                'team': vehicle.get('team'),
-                'isAlive': vehicle.get('isAlive'),
-            }
+        players = (
+            (
+                vehicle.get('accountDBID'),
+                {
+                    'vid': vid,
+                    'name': vehicle.get('name'),
+                    'vehicle_name': vehicle.get('vehicleType').name.rpartition(':')[-1],
+                    'team': vehicle.get('team'),
+                    'isAlive': vehicle.get('isAlive'),
+                }
+            )
             for vid, vehicle in self.arena.vehicles.iteritems()
-        }
+        )
+        return {cid: data for cid, data in players if cid > 0 and data.get('vehicle_name') != 'Observer'}
 
     @property
     def attackingTeam(self):
@@ -112,6 +116,8 @@ class Tracking(CallbackDelayer):
         self.__gui = None
         self.channel = Channel.Channel()
         self.config = config
+        self.statdata = PlayerStats()
+        self.shells_qauntity = defaultdict(int)
 
     def send(self, type, data):
         Log.LOG_DEBUG('Send', type, data)
@@ -123,6 +129,16 @@ class Tracking(CallbackDelayer):
             'type': type,
             'data': data
         })
+
+    def sendArena(self):
+        if self.player.isObserver():
+            self.send(MSG_TYPE.ARENA, self.arenadata)
+        return UPDATE_ARENA_INTERVAL
+
+    def sendStats(self):
+        if not self.player.isObserver():
+            self.send(MSG_TYPE.STATS, self.statdata)
+        return UPDATE_STATS_INTERVAL
 
     def getAllEvents(self, name, ctrl):
         return {name + '.' + prop: getattr(ctrl, prop) for prop in dir(ctrl) if
@@ -158,7 +174,44 @@ class Tracking(CallbackDelayer):
             self.getAllEvents('finishSound', self.sessionProvider.dynamic.finishSound)
         )
 
-    def track(self, type, *args, **kwargs):
+    def _onVehicleFeedbackReceived(self, eventID, vehicleID, value):
+        if eventID in (FEEDBACK_EVENT_ID.VEHICLE_HIT, FEEDBACK_EVENT_ID.VEHICLE_ARMOR_PIERCED):
+            self.statdata.updateStats(PlayerStats.HITS_COUNT, 1)
+            self.sendStats()
+
+    def _onPlayerFeedbackReceived(self, events):
+        eventIDs = (event.getType() for event in events)
+        for eventID in eventIDs:
+            if eventID == FEEDBACK_EVENT_ID.PLAYER_KILLED_ENEMY:
+                self.statdata.updateStats(PlayerStats.KILLS_COUNT, 1)
+                self.sendStats()
+            if eventID == FEEDBACK_EVENT_ID.PLAYER_SPOTTED_ENEMY:
+                self.statdata.updateStats(PlayerStats.SPOTTED_COUNT, 1)
+                self.sendStats()
+
+    def _onTotalEfficiencyUpdated(self, diff):
+        getTotalEfficiency = self.sessionProvider.shared.personalEfficiencyCtrl.getTotalEfficiency
+        self.statdata.updateStats(PlayerStats.DAMAGE_DONE, getTotalEfficiency(PERSONAL_EFFICIENCY_TYPE.DAMAGE))
+        self.statdata.updateStats(PlayerStats.DAMAGE_BLOCKED, getTotalEfficiency(PERSONAL_EFFICIENCY_TYPE.BLOCKED_DAMAGE))
+        self.statdata.updateStats(PlayerStats.DAMAGE_ASSIST, getTotalEfficiency(PERSONAL_EFFICIENCY_TYPE.ASSIST_DAMAGE))
+
+    def _onShellsAdded(self, intCD, descriptor, quantity, quantityInClip, gunSettings):
+        self.shells_qauntity[intCD] = quantity
+
+    def _onShellsUpdated(self, intCD, quantity, quantityInClip, result):
+        shots_made = self.shells_qauntity[intCD] - quantity
+        self.shells_qauntity[intCD] = quantity
+        if result & SHELL_SET_RESULT.CURRENT:
+            self.statdata.updateStats(PlayerStats.SHOTS_COUNT, shots_made)
+            self.sendStats()
+
+    def _onAvatarReady(self):
+        self.sendArena()
+
+    def _onArenaPeriodChange(self, period, periodEndTime, periodLength, periodAdditionalInfo):
+        self.sendArena()
+
+    def log(self, type, *args, **kwargs):
         if type == 'vehicleState.onVehicleStateUpdated':
             state = {
                 1: 'FIRE',
@@ -218,13 +271,6 @@ class Tracking(CallbackDelayer):
                 24: 'ENEMY_DAMAGED_DEVICE_PLAYER',
             }.get(args[0])
 
-            if state in [
-                'VEHICLE_HIT',
-                'VEHICLE_ARMOR_PIERCED',
-            ]:
-                self.statdata.updateStats(PlayerStats.HITS_COUNT, 1)
-                self.send(MSG_TYPE.STATS, self.statdata)
-
             Log.LOG_DEBUG(type, state, *args, **kwargs)
 
         elif type == 'feedback.onPlayerFeedbackReceived':
@@ -255,60 +301,43 @@ class Tracking(CallbackDelayer):
                           24: 'ENEMY_DAMAGED_DEVICE_PLAYER',
                       }.get(a.getType()) for a in args[0]]
 
-            for state in states:
-                if state == 'PLAYER_KILLED_ENEMY':
-                    self.statdata.updateStats(PlayerStats.KILLS_COUNT, 1)
-                    self.send(MSG_TYPE.STATS, self.statdata)
-                if state == 'PLAYER_SPOTTED_ENEMY':
-                    self.statdata.updateStats(PlayerStats.SPOTTED_COUNT, 1)
-                    self.send(MSG_TYPE.STATS, self.statdata)
-
             Log.LOG_DEBUG(type, states, *args, **kwargs)
 
         else:
             Log.LOG_DEBUG(type, *args, **kwargs)
 
-        if type == 'personalEfficiencyCtrl.onTotalEfficiencyUpdated':
-            getTotalEfficiency = self.sessionProvider.shared.personalEfficiencyCtrl.getTotalEfficiency
-            self.statdata.updateStats(PlayerStats.DAMAGE_DONE, getTotalEfficiency(PERSONAL_EFFICIENCY_TYPE.DAMAGE))
-            self.statdata.updateStats(PlayerStats.DAMAGE_BLOCKED, getTotalEfficiency(PERSONAL_EFFICIENCY_TYPE.BLOCKED_DAMAGE))
-            self.statdata.updateStats(PlayerStats.DAMAGE_ASSIST, getTotalEfficiency(PERSONAL_EFFICIENCY_TYPE.ASSIST_DAMAGE))
-
         if type == 'arena.onVehicleStatisticsUpdate':
             print repr(self.arena.statistics)
 
-        if type == 'ammo.onShellsAdded':
-            intCD, descriptor, quantity, quantityInClip, gunSettings = args
-            current_shell_qauntity[intCD] = quantity
-
-        if type == 'ammo.onShellsUpdated':
-            intCD, quantity, quantityInClip, result = args
-            shots_made = current_shell_qauntity[intCD] - quantity
-            current_shell_qauntity[intCD] = quantity
-            if result & SHELL_SET_RESULT.CURRENT:
-                self.statdata.updateStats(PlayerStats.SHOTS_COUNT, shots_made)
-                self.send(MSG_TYPE.STATS, self.statdata)
-
-        if type in ['g_playerEvents.onAvatarReady', 'g_playerEvents.onArenaPeriodChange', 'arena.onPositionsUpdated']:
-            if True or self.player.isObserver():
-                self.send(MSG_TYPE.ARENA, self.arenadata)
-
-    def getTracker(self, type):
-        return self.trackers.setdefault(type, lambda *args, **kwargs: self.track(type, *args, **kwargs))
+    def getLogger(self, type):
+        return self.trackers.setdefault(type, lambda *args, **kwargs: self.log(type, *args, **kwargs))
 
     def update_gui(self):
         self.gui.text = 'STATS:\n\n' + '\n'.join('%s: %d' % (stat_name, stat_value) for stat_name, stat_value in self.statdata.iteritems())
         return UPDATE_GUI_INTERVAL
 
     def start(self):
-        self.statdata = PlayerStats()
-
         self.channel.init(self.config)
+
+        self.statdata.clear()
+        self.shells_qauntity.clear()
+
+        if self.player.isObserver():
+            g_playerEvents.onAvatarReady += self._onAvatarReady
+            g_playerEvents.onArenaPeriodChange += self._onArenaPeriodChange
+            self.delayCallback(UPDATE_ARENA_INTERVAL, self.sendArena)
+        else:
+            self.sessionProvider.shared.feedback.onVehicleFeedbackReceived += self._onVehicleFeedbackReceived
+            self.sessionProvider.shared.feedback.onPlayerFeedbackReceived += self._onPlayerFeedbackReceived
+            self.sessionProvider.shared.personalEfficiencyCtrl.onTotalEfficiencyUpdated += self._onTotalEfficiencyUpdated
+            self.sessionProvider.shared.ammo.onShellsAdded += self._onShellsAdded
+            self.sessionProvider.shared.ammo.onShellsUpdated += self._onShellsUpdated
+            self.delayCallback(UPDATE_STATS_INTERVAL, self.sendStats)
 
         for ctrl_event in self.getAllControllersEvents():
             for name, event in ctrl_event.iteritems():
                 Log.LOG_DEBUG('bound to %s' % name)
-                event += self.getTracker(name)
+                event += self.getLogger(name)
 
         self.__gui = None
 
@@ -316,13 +345,24 @@ class Tracking(CallbackDelayer):
         self.delayCallback(UPDATE_GUI_INTERVAL, self.update_gui)
 
     def stop(self):
-        self.stopCallback(self.update_gui)
+        self.clearCallbacks()
+
         GUI.roots()[-1].delChild(self.gui)
 
         for ctrl_event in self.getAllControllersEvents():
             for name, event in ctrl_event.iteritems():
                 # Log.LOG_DEBUG('unbound from %s' % name)
-                event -= self.getTracker(name)
+                event -= self.getLogger(name)
+
+        if self.player.isObserver():
+            g_playerEvents.onAvatarReady -= self._onAvatarReady
+            g_playerEvents.onArenaPeriodChange -= self._onArenaPeriodChange
+        else:
+            self.sessionProvider.shared.feedback.onVehicleFeedbackReceived -= self._onVehicleFeedbackReceived
+            self.sessionProvider.shared.feedback.onPlayerFeedbackReceived -= self._onPlayerFeedbackReceived
+            self.sessionProvider.shared.personalEfficiencyCtrl.onTotalEfficiencyUpdated -= self._onTotalEfficiencyUpdated
+            self.sessionProvider.shared.ammo.onShellsAdded -= self._onShellsAdded
+            self.sessionProvider.shared.ammo.onShellsUpdated -= self._onShellsUpdated
 
         for stat_name, stat_value in self.statdata.iteritems():
             Log.LOG_DEBUG('%s: %d' % (stat_name, stat_value))

@@ -4,7 +4,7 @@ from . import Tracking
 from . import Log
 
 
-class Logger(object):
+class ProDB(object):
     config = None
     tracking = None
 
@@ -26,12 +26,12 @@ class Logger(object):
         if event.ns != NS.SF_BATTLE:
             return
 
-        Log.LOG_DEBUG('Logger onBattleAppInitialized', event.ns)
+        Log.LOG_DEBUG('ProDB onBattleAppInitialized', event.ns)
 
         try:
             self.tracking.start()
         except Exception, ex:
-            Log.LOG_ERROR('Logger onBattleAppInitialized exception:', ex)
+            Log.LOG_ERROR('ProDB onBattleAppInitialized exception:', ex)
             Log.LOG_CURRENT_EXCEPTION()
 
     def onBattleAppDestroyed(self, event):
@@ -40,10 +40,10 @@ class Logger(object):
         if event.ns != NS.SF_BATTLE:
             return
 
-        Log.LOG_DEBUG('Logger onBattleAppDestroyed', event.ns)
+        Log.LOG_DEBUG('ProDB onBattleAppDestroyed', event.ns)
 
         try:
             self.tracking.stop()
         except Exception, ex:
-            Log.LOG_ERROR('Logger onBattleAppDestroyed exception:', ex)
+            Log.LOG_ERROR('ProDB onBattleAppDestroyed exception:', ex)
             Log.LOG_CURRENT_EXCEPTION()
