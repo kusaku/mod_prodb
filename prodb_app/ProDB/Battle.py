@@ -1,21 +1,20 @@
 import asyncio
+import copy
 import json
-import pprint
 import queue
 import threading
-
 import time
 
-from ProDB import logger, autodict
-from ProDB.Poster import POST_TYPE
+from ProDB import logger
 from ProDB.ProxyTypes import ProxyTeam, ProxyPlayer
 
-BATTLE_FINISH_TIMEOUT = 20.0 # seconds
+BATTLE_FINISH_TIMEOUT = 20.0  # seconds
 
 
 class MSG_TYPE:
     ARENA = 'arena'
     STATS = 'stats'
+
 
 class ARENA_PERIOD:
     IDLE = 0
@@ -32,14 +31,17 @@ class Battle(object):
 
     @property
     def is_finished(self):
-        return 'period' in self.data and \
-               self.data['period']['period'] == ARENA_PERIOD.AFTERBATTLE or \
+        return self._data.get('period').get('period') == ARENA_PERIOD.AFTERBATTLE or \
                time.time() - self._last_atime > BATTLE_FINISH_TIMEOUT
 
     @property
     def is_consistent(self):
-        return 'stats' in self.data and 'players' in self.data and \
-               set(self.data.get('stats').keys()) == set(self.data.get('players').keys())
+        return self._data.get('stats') and self._data.get('players') and \
+               set(self._data.get('stats').keys()) == set(self._data.get('players').keys())
+
+    @property
+    def is_changed(self):
+        return self._old_data != self._data
 
     def __init__(self, aid, outputq):
         self._aid = aid
@@ -50,7 +52,8 @@ class Battle(object):
         self._last_atime = 0
         self._last_stime = 0
         self._counter = 0
-        self.data = autodict()
+        self._data = dict(period=dict(), stats=dict(), players=dict())
+        self._old_data = copy.deepcopy(self._data)
 
     def start(self):
         self._stop_event.clear()
@@ -62,7 +65,6 @@ class Battle(object):
         self._stop_event.set()
         self._inputq.put(None)
         self._thread = None
-        self.data = autodict()
 
     def thread(self):
         logger.debug('Started')
@@ -81,23 +83,24 @@ class Battle(object):
 
     def _process(self, msg):
         self._last_atime = time.time()
+
         if msg.type == MSG_TYPE.ARENA:
             self._last_stime = msg.stime
-            self.data.update(msg.data)
+            self._data.update(msg.data)
 
         if msg.type == MSG_TYPE.STATS:
-            self.data['stats'][str(msg.cid)].update(msg.data)
+            self._data.get('stats')[str(msg.cid)] = msg.data
 
-        # logger.info(self._last_atime)
-        # logger.debug(json.dumps(self.data, indent=4))
+            # logger.info(self._last_atime)
+            # logger.debug(json.dumps(self.data, indent=4))
 
     def generate_post(self, post_type):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
         # if post_type == POST_TYPE.STATS:
-        proxy_team_1 = ProxyTeam(1, self.data)
-        proxy_team_2 = ProxyTeam(2, self.data)
+        proxy_team_1 = ProxyTeam(1, self._data)
+        proxy_team_2 = ProxyTeam(2, self._data)
 
         teams = [
             {
@@ -118,8 +121,8 @@ class Battle(object):
 
         players = list()
 
-        for cid in self.data['players'].keys():
-            proxy_player = ProxyPlayer(cid, self.data)
+        for cid in self._data['players'].keys():
+            proxy_player = ProxyPlayer(cid, self._data)
             players.append({
                 'id': proxy_player.id,
                 'vendorId': proxy_player.vendorId,
@@ -163,8 +166,6 @@ class Battle(object):
 
         completed, pending = loop.run_until_complete(asyncio.wait(tasks))
 
-        logger.debug('stop waiting')
-
         def set_result_to(struct, completed):
             if isinstance(struct, dict):
                 for k, v in struct.items():
@@ -178,8 +179,8 @@ class Battle(object):
 
         set_result_to(post, completed)
 
+        self._old_data = copy.deepcopy(self._data)
+
+        # logger.debug(json.dumps(self._data, indent=4))
+
         return post
-
-
-
-

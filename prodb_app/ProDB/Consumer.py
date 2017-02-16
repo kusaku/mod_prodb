@@ -1,21 +1,20 @@
 import json
-import pprint
 import threading
 from collections import namedtuple
 from datetime import datetime
 
 import pika
 
-from ProDB import logger
 from ProDB import App
+from ProDB import logger
 
 RESTART_TIMEOUT = 10.0
 NEW_CASTER_TIMEOUT = 5.0
 
 msg_packet = namedtuple('msg_packet', 'prodb,aid,cid,stime,type,data')
 
-class Consumer(object):
 
+class Consumer(object):
     def __init__(self):
         self._config = App.App().config
         self._queue = App.App().inputq
@@ -58,7 +57,8 @@ class Consumer(object):
                 credentials = pika.PlainCredentials(self._config.rmq_username, self._config.rmq_password)
 
                 self._connection = pika.BlockingConnection(
-                    pika.ConnectionParameters(host=self._config.rmq_ip, port=self._config.rmq_port, credentials=credentials)
+                    pika.ConnectionParameters(host=self._config.rmq_ip, port=self._config.rmq_port,
+                                              credentials=credentials)
                 )
 
                 channel = self._connection.channel()

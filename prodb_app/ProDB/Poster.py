@@ -1,6 +1,5 @@
 import asyncio
 import threading
-from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures import ThreadPoolExecutor
 
 import requests
@@ -70,4 +69,6 @@ class Poster(object):
 
 
 def _post(data):
+    import json
+    # logger.debug(json.dumps(data, indent=4))
     return requests.post('http://127.0.0.1', data)

@@ -1,9 +1,9 @@
-import queue
-import threading
 import argparse
 import logging
+import queue
 import signal
 import sys
+import threading
 
 from ProDB import logger, file_logger
 from ProDB.Config import Config

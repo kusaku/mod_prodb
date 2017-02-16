@@ -1,11 +1,8 @@
 import asyncio
-import functools
 import json
-import pprint
 import uuid
 
 import names
-from ProDB import logger
 
 mock_player = """
 [
@@ -114,6 +111,7 @@ mock_round = """
 }
 """
 
+
 def getPlayer(pid):
     player = json.loads(mock_player)
     guid = str(uuid.uuid4())
@@ -124,14 +122,18 @@ def getPlayer(pid):
     player[0]['account'] = '1:1:%d' % pid
     return player
 
+
 def getSquad(players):
     return json.loads(mock_squad)
+
 
 def getMatch(squad):
     return json.loads(mock_match)
 
+
 def getRound(match):
     return json.loads(mock_round)
+
 
 def getRoundGUID(round):
     return round['rounds'][0]['key']
@@ -139,16 +141,18 @@ def getRoundGUID(round):
 
 # @functools.lru_cache()
 async def getTeamIdByPlayerCIDs(*cids):
-    await asyncio.sleep(5)
+    await asyncio.sleep(0.2)
     return str(uuid.uuid4())
+
 
 # @functools.lru_cache()
 async def getTeamNameByPlayerCIDs(*cids):
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(0.3)
+    # logger.error('getTeamNameByPlayerCIDs {}'.format(repr(cids)))
     return names.get_last_name()
+
 
 # @functools.lru_cache()
 async def getPlayerIdByPlayerCID(cid):
     await asyncio.sleep(0.5)
     return str(uuid.uuid4())
-

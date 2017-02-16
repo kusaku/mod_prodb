@@ -1,7 +1,7 @@
 import collections
 import json
 
-from ProDB import logger, file_logger
+from ProDB import logger
 
 
 def Config(filepath):

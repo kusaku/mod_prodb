@@ -1,11 +1,8 @@
-import json
 import threading
 
-import copy
-
 from ProDB import App
-from ProDB import logger
 from ProDB import Battle
+from ProDB import logger
 from ProDB.Poster import POST_TYPE
 
 REFRESH_PERIOD = 3.0
@@ -70,7 +67,7 @@ class Dispatcher(object):
 
             for aid, battle in list(self._pool.items()):
 
-                if battle.is_consistent:
+                if battle.is_consistent and battle.is_changed:
                     post_data = battle.generate_post(POST_TYPE.STATS)
                     self._outputq.put(post_data)
 
