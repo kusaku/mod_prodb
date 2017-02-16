@@ -92,5 +92,6 @@ class Consumer(object):
         try:
             msg = msg_packet(**json.loads(body.decode('utf-8')))
             self._queue.put(msg)
-        except:
+        except Exception as e:
+            # logger.exception(e)
             pass

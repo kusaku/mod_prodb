@@ -69,9 +69,10 @@ class Dispatcher(object):
                 continue
 
             for aid, battle in list(self._pool.items()):
-                # post_data = copy.deepcopy(battle.generate_post(POST_TYPE.STATS))
-                post_data = battle.generate_post(POST_TYPE.STATS)
-                self._outputq.put(post_data)
+
+                if battle.is_consistent:
+                    post_data = battle.generate_post(POST_TYPE.STATS)
+                    self._outputq.put(post_data)
 
                 if battle.is_finished:
                     battle.stop()

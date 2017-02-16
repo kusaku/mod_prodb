@@ -1,3 +1,5 @@
+import asyncio
+
 from ProDB import ProDBPoller
 
 
@@ -5,7 +7,8 @@ class ProxyTeam:
     @property
     def id(self):
         cids = [cid for cid, player in self.data['players'].items() if player['team'] == self.index]
-        return ProDBPoller.getTeamIdByPlayerCIDs(*cids)
+        loop = asyncio.get_event_loop()
+        return loop.create_task(ProDBPoller.getTeamIdByPlayerCIDs(*cids))
 
     @property
     def name(self):
@@ -28,7 +31,8 @@ class ProxyTeam:
 class ProxyPlayer:
     @property
     def id(self):
-        return ProDBPoller.getPlayerIdByPlayerCID(self.cid)
+        loop = asyncio.get_event_loop()
+        return loop.create_task(ProDBPoller.getPlayerIdByPlayerCID(self.cid))
 
     @property
     def vendorId(self):
