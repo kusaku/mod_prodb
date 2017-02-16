@@ -2,6 +2,9 @@ import asyncio
 import json
 import uuid
 
+import functools
+import requests
+
 import names
 
 mock_player = """
@@ -112,47 +115,78 @@ mock_round = """
 """
 
 
-def getPlayer(pid):
-    player = json.loads(mock_player)
-    guid = str(uuid.uuid4())
-    name = names.get_full_name()
-    player[0]['player']['key'] = guid
-    player[0]['player']['name'] = name
-    player[0]['player']['nameOriginal'] = name
-    player[0]['account'] = '1:1:%d' % pid
-    return player
+@functools.lru_cache()
+def getPlayer(cid):
+    url = 'https://prodb.tet.io/api/player-gameaccounts?' \
+          'gamePlatform=3df8be21-dab3-4fe1-b792-59fa1a9f63c0&account=1:1:{}'.format(cid)
+    resp = requests.get(url)
+    return resp.json()
 
 
-def getSquad(players):
-    return json.loads(mock_squad)
+@functools.lru_cache()
+def getSquads(players):
+    players_keys = ','.join(players)
+    url = 'https://prodb.tet.io/api/team-squads?' \
+          'gamePlatform=3df8be21-dab3-4fe1-b792-59fa1a9f63c0&players={}'.format(players_keys)
+    resp = requests.get(url)
+    return resp.json()
 
 
-def getMatch(squad):
-    return json.loads(mock_match)
+@functools.lru_cache()
+def getMatches(squads):
+    squads_keys = ','.join(squad.get('team', {}).get('key') for squad in squads)
+    url = 'https://prodb.tet.io/api/matches?' \
+          'status=open,live&sort=startTime&squads={}'.format(squads_keys)
+    resp = requests.get(url)
+    return resp.json()
 
 
-def getRound(match):
-    return json.loads(mock_round)
+@functools.lru_cache()
+def getMatchDetail(match_key):
+    url = 'https://prodb.tet.io/api/matches/{}/detail'.format(match_key)
+    match_info = requests.get(url).json()
+    return match_info.get('rounds')
 
 
-def getRoundGUID(round):
-    return round['rounds'][0]['key']
+@functools.lru_cache()
+def getRound(matches):
+    for match_key in (match.get('key') for match in matches if match.get('matchStatus') in ('live', 'open')):
+        for round_info in getMatchDetail(match_key):
+            if round_info.get('roundStatus') in ('live', 'open'):
+                return round_info
 
 
-# @functools.lru_cache()
-async def getTeamIdByPlayerCIDs(*cids):
-    await asyncio.sleep(0.2)
-    return str(uuid.uuid4())
+@asyncio.coroutine
+def getRoundIdByPlayerCIDs(*cids, clearcache=False):
+    if clearcache:
+        getSquads.cache_clear()
+        getMatches.cache_clear()
+        getRound.cache_clear()
+    squads_info = getSquads(cids)
+    matches_info = getMatches(squads_info)
+    round_info = getRound(matches_info)
+    return round_info.get('key')
 
 
-# @functools.lru_cache()
-async def getTeamNameByPlayerCIDs(*cids):
-    await asyncio.sleep(0.3)
-    # logger.error('getTeamNameByPlayerCIDs {}'.format(repr(cids)))
-    return names.get_last_name()
+@asyncio.coroutine
+def getTeamIdByPlayerCIDs(*cids, clearcache=False):
+    if clearcache:
+        getSquads.cache_clear()
+    squads_info = getSquads(cids)
+    return squads_info[0].get('team', {}).get('key')
 
 
-# @functools.lru_cache()
-async def getPlayerIdByPlayerCID(cid):
-    await asyncio.sleep(0.5)
-    return str(uuid.uuid4())
+@asyncio.coroutine
+def getTeamNameByPlayerCIDs(*cids, clearcache=False):
+    if clearcache:
+        getSquads.cache_clear()
+    squads_info = getSquads(cids)
+    return squads_info[0].get('name', {}).get('key')
+
+
+@asyncio.coroutine
+def getPlayerIdByPlayerCID(cid, clearcache=False):
+    if clearcache:
+        getPlayer.cache_clear()
+    player_info = getPlayer(cid)
+    return player_info[0].get('player', {}).get('key')
