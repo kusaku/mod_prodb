@@ -121,7 +121,7 @@ class Battle(object):
 
         players = list()
 
-        for cid in self._data['players'].keys():
+        for cid in self._data.get('players', {}).keys():
             proxy_player = ProxyPlayer(cid, self._data)
             players.append({
                 'id': proxy_player.id,
@@ -182,5 +182,7 @@ class Battle(object):
         self._old_data = copy.deepcopy(self._data)
 
         # logger.debug(json.dumps(self._data, indent=4))
+        
+        loop.close()
 
         return post
