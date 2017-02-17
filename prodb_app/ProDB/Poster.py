@@ -70,5 +70,7 @@ class Poster(object):
 
 def _post(data):
     import json
-    # logger.debug(json.dumps(data, indent=4))
-    return requests.post('http://127.0.0.1', data)
+    logger.debug('Message from poster!')
+    logger.debug(json.dumps(data, indent=4))
+    # requests.post('http://127.0.0.1', data)
+    return

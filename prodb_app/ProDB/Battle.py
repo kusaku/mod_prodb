@@ -6,7 +6,7 @@ import threading
 import time
 
 from ProDB import logger
-from ProDB.ProxyTypes import ProxyTeam, ProxyPlayer
+from ProDB.ProxyTypes import ProxyTeam, ProxyPlayer, ProxyRound
 
 BATTLE_FINISH_TIMEOUT = 20.0  # seconds
 
@@ -91,8 +91,8 @@ class Battle(object):
         if msg.type == MSG_TYPE.STATS:
             self._data.get('stats')[str(msg.cid)] = msg.data
 
-            # logger.info(self._last_atime)
-            # logger.debug(json.dumps(self.data, indent=4))
+        # logger.info(self._last_atime)
+        # logger.debug(json.dumps(self._data, indent=4))
 
     def generate_post(self, post_type):
         loop = asyncio.new_event_loop()
@@ -139,11 +139,13 @@ class Battle(object):
                     'spotted': proxy_player.spotted,
                     'damageDealt': proxy_player.damageDealt,
                     'damageBlocked': proxy_player.damageBlocked,
-
                 }
             })
 
+        proxy_arena = ProxyRound(self._data)
+
         post = {
+            'key': proxy_arena.id,
             'meta': dict(),
             'contestants': {
                 'teams': teams,
@@ -181,8 +183,6 @@ class Battle(object):
 
         self._old_data = copy.deepcopy(self._data)
 
-        # logger.debug(json.dumps(self._data, indent=4))
-        
         loop.close()
 
         return post
