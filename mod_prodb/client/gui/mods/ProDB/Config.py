@@ -16,21 +16,25 @@ def convert_to_utf8(data):
 
 
 def Config():
-    filepath = os.path.join(os.getcwd(), 'res_mods', 'server.json')
+    filepath = os.path.join(os.getcwd(), 'res_mods', 'ObsMod', 'server.json')
+    is_caster = os.path.exists(os.path.join(os.getcwd(), 'res_mods', 'caster'))
 
     config = {
-        'username': 'wot_observer_user',
-        'password': 'WoT123',
-        'host': '92.255.125.251',
-        'port': 5672,
-        'exchange': 'wot_ventuz_exchange'
+        'server_user': 'wot_observer_user',
+        'server_pass': 'WoT123',
+        'server_ip': '92.255.125.251',
+        'server_port': '5672',
+        'exchange_name': 'wot_observer_exchange',
+        'is_caster': is_caster
     }
 
     try:
+        config_keys = config.keys()
         with open(filepath, 'rt') as infile:
-            config = convert_to_utf8(json.load(infile))
-            Log.LOG_DEBUG('Loaded config: %s\n%s' % (filepath, repr(config)))
+            loaded_config = json.load(infile)
+            config = {key: loaded_config.get(key, config[key]) for key in config_keys}
+            Log.LOG_DEBUG('Loaded config: %s' % filepath)
     except Exception as ex:
         Log.LOG_ERROR("'%s' exception: " % filepath, ex)
 
-    return collections.namedtuple('Config', ('username', 'password', 'host', 'port', 'exchange'))(**config)
+    return collections.namedtuple('Config', 'server_user,server_pass,server_ip,server_port,exchange_name,is_caster')(**config)

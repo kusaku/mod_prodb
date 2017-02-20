@@ -73,8 +73,7 @@
             <arg line="-m compileall ${prodb_mod.src}"/>
         </exec>
 
-        <copy todir="${prodb_mod.out}/res_mods/" file="${prodb_mod.src}/server.json"/>
-        <!--<copy todir="${prodb_mod.out}/res_mods/" file="${prodb_mod.src}/logger"/>-->
+        <copy todir="${prodb_mod.out}/res_mods/ObsMod/" file="${prodb_mod.src}/server.json"/>
 
         <copy todir="${prodb_mod.out}/res_mods/${wot.version}/scripts">
             <fileset dir="${prodb_mod.src}">

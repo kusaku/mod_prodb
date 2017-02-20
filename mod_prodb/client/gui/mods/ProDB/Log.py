@@ -1,10 +1,9 @@
 from __future__ import print_function
 
-import traceback
 import sys
 import threading
-
 import time
+import traceback
 
 
 def _makeMsgHeader(s, frame):

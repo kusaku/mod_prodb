@@ -39,15 +39,14 @@ class Channel:
     def connect(self):
         Log.LOG_DEBUG('Channel connect')
 
-        username = self.config.username
-        password = self.config.password
-        host = self.config.host
-        port = int(self.config.port)
-        exchange = self.config.exchange
+        username = self.config.server_user
+        password = self.config.server_pass
+        host = self.config.server_ip
+        port = int(self.config.server_port)
+        exchange = self.config.exchange_name
 
         Log.LOG_DEBUG("Channel connect info: ExchangeName='%s' IP='%s' Port='%s' User='%s' len(Pass)=%d"
                       % (exchange, host, port, username, len(password)))
-        self.exchange_name = exchange
 
         try:
             credentials = pika.PlainCredentials(username, password)
@@ -74,7 +73,7 @@ class Channel:
 
     def send_message_try(self, message):
         try:
-            self.channel.basic_publish(exchange=self.exchange_name, routing_key='', body=message)  # mandatory=True
+            self.channel.basic_publish(exchange=self.config.exchange_name, routing_key='', body=message)  # mandatory=True
             return True
         except Exception, ex:
             Log.LOG_ERROR('Channel send_message_try exception', ex)

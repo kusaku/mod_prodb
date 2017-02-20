@@ -1,17 +1,17 @@
 #
-# ventuz_mod entry point
+# mod_prodb entry point
 #
 
-from gui.mods.ProDB import g_logger, Log
+from gui.mods.ProDB import g_proDB, Log
 
 def init():
     Log.LOG_DEBUG('init')
-    g_logger.init()
+    g_proDB.init()
 
 
 def fini():
     Log.LOG_DEBUG('fini')
-    g_logger.fini()
+    g_proDB.fini()
 
 
 def onAccountBecomeNonPlayer():
