@@ -90,7 +90,7 @@
     </target>
 
     <target name="zip" depends="build">
-        <zip destfile="${basedir}/${DATETIME} ProDB Mod Mod ${wot.version.short}.zip" level="9">
+        <zip destfile="${basedir}/${DATETIME} ProDBMod for ${wot.version.short}.zip" level="9">
             <zipfileset dir="${prodb_mod.out}"/>
         </zip>
     </target>
