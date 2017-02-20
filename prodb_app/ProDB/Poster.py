@@ -51,11 +51,12 @@ class Poster(object):
         while not self._stop_event.isSet():
             futures = set()
             while not self._stop_event.isSet() and len(futures) < MAX_WORKERS:
-                post_data = self._inputq.get()
-                if post_data is None:
+                msg = self._inputq.get()
+                if msg is None:
                     continue
+                aid, post_data = msg
                 try:
-                    future = loop.run_in_executor(None, _post, post_data)
+                    future = loop.run_in_executor(None, _post, aid, post_data)
                 except:
                     continue
                 futures.add(future)
@@ -68,9 +69,12 @@ class Poster(object):
                 gathered_future.cancel()
 
 
-def _post(data):
+def _post(aid, post_data):
     import json
     logger.debug('Message from poster!')
-    logger.debug(json.dumps(data, indent=4))
+    logger.debug(json.dumps(post_data, indent=4))
+    with open('arena-%s' % aid, 'at') as fp:
+        json.dump(post_data, fp=fp, indent=4)
+        fp.write('\n')
     # requests.post('http://127.0.0.1', data)
     return

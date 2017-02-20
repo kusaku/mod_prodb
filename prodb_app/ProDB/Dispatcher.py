@@ -69,7 +69,8 @@ class Dispatcher(object):
 
                 if battle.is_consistent and battle.is_changed:
                     post_data = battle.generate_post(POST_TYPE.STATS)
-                    self._outputq.put(post_data)
+                    msg = aid, post_data
+                    self._outputq.put(msg)
 
                 if battle.is_finished:
                     battle.stop()

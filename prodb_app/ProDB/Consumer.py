@@ -11,7 +11,7 @@ from ProDB import logger
 RESTART_TIMEOUT = 10.0
 NEW_CASTER_TIMEOUT = 5.0
 
-msg_packet = namedtuple('msg_packet', 'prodb,aid,cid,stime,type,data')
+msg_packet = namedtuple('msg_packet', 'aid,vid,cid,stime,type,data')
 
 
 class Consumer(object):
@@ -91,7 +91,8 @@ class Consumer(object):
     def callback(self, ch, method, properties, body):
         try:
             msg = msg_packet(**json.loads(body.decode('utf-8')))
+            # logger.exception(json.dumps(msg, indent=4))
             self._queue.put(msg)
         except Exception as e:
-            # logger.exception(e)
+            logger.exception(body)
             pass

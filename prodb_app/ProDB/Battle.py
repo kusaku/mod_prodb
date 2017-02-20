@@ -1,19 +1,24 @@
 import asyncio
 import copy
-import json
 import queue
 import threading
 import time
 
 from ProDB import logger
+from ProDB.Poster import POST_TYPE
 from ProDB.ProxyTypes import ProxyTeam, ProxyPlayer, ProxyRound
 
 BATTLE_FINISH_TIMEOUT = 20.0  # seconds
 
 
 class MSG_TYPE:
-    ARENA = 'arena'
-    STATS = 'stats'
+    UPDATE_ARENA = 'update_arena'
+    UPDATE_STATS = 'update_stats'
+    UPDATE_HEALTH = 'update_health'
+    UPDATE_RELOAD = 'update_reload'
+    UPDATE_DAMAGE = 'update_damage'
+    UPDATE_SPOTTED = 'update_spotted'
+    UPDATE_BASE_STATE = 'update_base_state'
 
 
 class ARENA_PERIOD:
@@ -84,105 +89,103 @@ class Battle(object):
     def _process(self, msg):
         self._last_atime = time.time()
 
-        if msg.type == MSG_TYPE.ARENA:
+        if msg.type == MSG_TYPE.UPDATE_ARENA:
             self._last_stime = msg.stime
             self._data.update(msg.data)
 
-        if msg.type == MSG_TYPE.STATS:
-            self._data.get('stats')[str(msg.cid)] = msg.data
-
-        # logger.info(self._last_atime)
-        # logger.debug(json.dumps(self._data, indent=4))
+        if msg.type in (MSG_TYPE.UPDATE_STATS, MSG_TYPE.UPDATE_BASE_STATE):
+            stats = self._data.get('stats').setdefault(str(msg.cid), {})
+            stats.update(msg.data.get('stats_data', {}))
 
     def generate_post(self, post_type):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
-        # if post_type == POST_TYPE.STATS:
-        proxy_team_1 = ProxyTeam(1, self._data)
-        proxy_team_2 = ProxyTeam(2, self._data)
+        if post_type == POST_TYPE.STATS:
+            proxy_team_1 = ProxyTeam(1, self._data)
+            proxy_team_2 = ProxyTeam(2, self._data)
 
-        teams = [
-            {
-                'id': proxy_team_1.id,
-                'name': proxy_team_1.name,
-                'meta': {
-                    'ingameTeam': proxy_team_1.attack_defence
-                }
-            },
-            {
-                'id': proxy_team_2.id,
-                'name': proxy_team_2.name,
-                'meta': {
-                    'ingameTeam': proxy_team_2.attack_defence
-                }
-            },
-        ]
-
-        players = list()
-
-        for cid in self._data.get('players', {}).keys():
-            proxy_player = ProxyPlayer(cid, self._data)
-            players.append({
-                'id': proxy_player.id,
-                'vendorId': proxy_player.vendorId,
-                'name': proxy_player.name,
-                'teamId': proxy_player.teamId,
-                'meta': {
-                    'tank': {
-                        'name': proxy_player.tank_name
+            teams = [
+                {
+                    'id': proxy_team_1.id,
+                    'name': proxy_team_1.name,
+                    'meta': {
+                        'ingameTeam': proxy_team_1.attack_defence
                     }
                 },
-                'stats': {
-                    'kills': proxy_player.kills,
-                    'shots': proxy_player.shots,
-                    'spotted': proxy_player.spotted,
-                    'damageDealt': proxy_player.damageDealt,
-                    'damageBlocked': proxy_player.damageBlocked,
-                }
-            })
+                {
+                    'id': proxy_team_2.id,
+                    'name': proxy_team_2.name,
+                    'meta': {
+                        'ingameTeam': proxy_team_2.attack_defence
+                    }
+                },
+            ]
 
-        proxy_arena = ProxyRound(self._data)
+            players = list()
 
-        post = {
-            'key': proxy_arena.id,
-            'meta': dict(),
-            'contestants': {
-                'teams': teams,
-                'players': players,
-            },
-            'timeline': list()
-        }
+            for cid in self._data.get('players', {}).keys():
+                proxy_player = ProxyPlayer(cid, self._data)
+                players.append({
+                    'id': proxy_player.id,
+                    'vendorId': proxy_player.vendorId,
+                    'name': proxy_player.name,
+                    'teamId': proxy_player.teamId,
+                    'meta': {
+                        'tank': {
+                            'name': proxy_player.tank_name
+                        }
+                    },
+                    'stats': {
+                        'kills': proxy_player.kills,
+                        'shots': proxy_player.shots,
+                        'spotted': proxy_player.spotted,
+                        'damageDealt': proxy_player.damageDealt,
+                        'damageBlocked': proxy_player.damageBlocked,
+                    }
+                })
 
-        def get_tasks_of(struct):
-            if isinstance(struct, asyncio.Task):
-                yield struct
-            elif isinstance(struct, dict):
-                for v in struct.values():
-                    yield from get_tasks_of(v)
-            elif isinstance(struct, list):
-                for v in struct:
-                    yield from get_tasks_of(v)
+            proxy_arena = ProxyRound(self._data)
 
-        tasks = [v for v in get_tasks_of(post)]
+            post = {
+                'key': proxy_arena.id,
+                'meta': dict(),
+                'contestants': {
+                    'teams': teams,
+                    'players': players,
+                },
+                'timeline': list()
+            }
 
-        completed, pending = loop.run_until_complete(asyncio.wait(tasks))
+            def get_tasks_of(struct):
+                if isinstance(struct, asyncio.Task):
+                    yield struct
+                elif isinstance(struct, dict):
+                    for v in struct.values():
+                        yield from get_tasks_of(v)
+                elif isinstance(struct, list):
+                    for v in struct:
+                        yield from get_tasks_of(v)
 
-        def set_result_to(struct, completed):
-            if isinstance(struct, dict):
-                for k, v in struct.items():
-                    if isinstance(v, asyncio.Task):
-                        struct[k] = v.result()
-                    else:
+            tasks = [v for v in get_tasks_of(post)]
+
+            completed, pending = loop.run_until_complete(asyncio.wait(tasks))
+
+            def set_result_to(struct, completed):
+                if isinstance(struct, dict):
+                    for k, v in struct.items():
+                        if isinstance(v, asyncio.Task):
+                            struct[k] = v.result()
+                        else:
+                            set_result_to(v, completed)
+                elif isinstance(struct, list):
+                    for v in struct:
                         set_result_to(v, completed)
-            elif isinstance(struct, list):
-                for v in struct:
-                    set_result_to(v, completed)
 
-        set_result_to(post, completed)
+            set_result_to(post, completed)
 
-        self._old_data = copy.deepcopy(self._data)
+            self._old_data = copy.deepcopy(self._data)
 
-        loop.close()
+            loop.close()
 
-        return post
+            return post
