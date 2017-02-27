@@ -35,6 +35,8 @@ class App(metaclass=Singleton):
         parser = argparse.ArgumentParser()
         parser.add_argument('--verbose', dest='verbose', action='store_true', help='verbose mode')
         parser.add_argument('--filelog', dest='filelog', action='store_true', help='enable log to files')
+        parser.add_argument('--mockpoll', dest='mockpoll', action='store_true', help='mock ProDB service poll')
+        parser.add_argument('--mockpost', dest='mockpost', action='store_true', help='mock ProDB service post')
         parser.add_argument('--config', dest='config', default='prodb_mod_server.cfg', help='configuration file')
         args = parser.parse_args()
 
@@ -63,7 +65,7 @@ class App(metaclass=Singleton):
         logger.info('Normal exit')
 
     def start(self):
-        self.config = Config(self._args.config)
+        self.config = Config(self._args)
         self._consumer = Consumer()
         self._consumer.start()
         self._dispatcher = Dispatcher()

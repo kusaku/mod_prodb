@@ -2,8 +2,8 @@ import threading
 
 from ProDB import App
 from ProDB import Battle
+from ProDB import Poller
 from ProDB import logger
-from ProDB.Poster import POST_TYPE
 
 REFRESH_PERIOD = 3.0
 
@@ -33,6 +33,7 @@ class Dispatcher(object):
         while len(self._pool):
             aid, battle = self._pool.popitem()
             battle.stop()
+            logger.info('Battle {} stopped'.format(aid))
         self._thread_in = None
         self._thread_out = None
 
@@ -49,6 +50,7 @@ class Dispatcher(object):
                 battle = Battle.Battle(msg.aid, self._outputq)
                 self._pool[msg.aid] = battle
                 battle.start()
+                logger.info('Battle {} started'.format(msg.aid))
             else:
                 battle = self._pool[msg.aid]
 
@@ -61,19 +63,28 @@ class Dispatcher(object):
     def thread_out(self):
         logger.debug('Started')
 
-        while not self._stop_event.wait(0.25):
-            if len(self._pool) == 0:
-                continue
+        # poll_represh = 60.0
+
+        while not self._stop_event.wait(0.01):
 
             for aid, battle in list(self._pool.items()):
+                # if poll_represh < 0.0:
+                #     battle.notify_update()
 
-                if battle.is_consistent and battle.is_changed:
-                    post_data = battle.generate_post(POST_TYPE.STATS)
+                if battle.is_post_updated:
+                    post_data = battle.get_post()
                     msg = aid, post_data
                     self._outputq.put(msg)
 
                 if battle.is_finished:
                     battle.stop()
+                    logger.info('Battle {} stopped'.format(aid))
                     del self._pool[aid]
+
+            # if poll_represh < 0.0:
+            #     Poller.cache_clear_all()
+            #     poll_represh = 60.0
+            # else:
+            #     poll_represh -= 0.01
 
         logger.debug('Finished')

@@ -4,7 +4,7 @@ import json
 from ProDB import logger
 
 
-def Config(filepath):
+def Config(args):
     config = {
         'rmq_username': 'wot_observer_user',
         'rmq_password': 'WoT123',
@@ -12,9 +12,13 @@ def Config(filepath):
         'rmq_port': 5672,
         'rmq_exchange': 'wot_observer_exchange',
         'rmq_session_dump': None,
+        'mockpoll': bool(args.mockpoll),
+        'mockpost': bool(args.mockpost),
     }
 
     config_keys = config.keys()
+
+    filepath = str(args.config)
 
     try:
         with open(filepath, 'rt') as infile:
@@ -27,4 +31,4 @@ def Config(filepath):
 
     logger.debug('Config:\n{}\n{}\n{}'.format('*' * 80, json.dumps(config, indent=4, sort_keys=True), '*' * 80))
 
-    return collections.namedtuple('Config', config_keys)(**config)
+    return collections.namedtuple('Config', sorted(config_keys))(**config)

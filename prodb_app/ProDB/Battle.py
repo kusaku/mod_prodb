@@ -5,7 +5,6 @@ import threading
 import time
 
 from ProDB import logger
-from ProDB.Poster import POST_TYPE
 from ProDB.ProxyTypes import ProxyTeam, ProxyPlayer, ProxyRound
 
 BATTLE_FINISH_TIMEOUT = 20.0  # seconds
@@ -45,8 +44,15 @@ class Battle(object):
                set(self._data.get('stats').keys()) == set(self._data.get('players').keys())
 
     @property
-    def is_changed(self):
-        return self._old_data != self._data
+    def is_data_updated(self):
+        return self._data != self._old_data
+
+    @property
+    def is_post_updated(self):
+        return self._post != self._old_post
+
+    def notify_update(self):
+        self._need_update_post = True
 
     def __init__(self, aid, outputq):
         self._aid = aid
@@ -54,11 +60,21 @@ class Battle(object):
         self._outputq = outputq
         self._stop_event = threading.Event()
         self._thread = None
-        self._last_atime = 0
-        self._last_stime = 0
+        self._lock = threading.Lock()
+        self._last_atime = time.time()
         self._counter = 0
         self._data = dict(period=dict(), stats=dict(), players=dict())
-        self._old_data = copy.deepcopy(self._data)
+        self._old_data = dict(period=dict(), stats=dict(), players=dict())
+        self._need_update_post = True
+        self._post = dict()
+        self._old_post = dict()
+
+    def get_post(self):
+        # logger.warn('get_post')
+        with self._lock:
+            if self.is_post_updated:
+                self._old_post = copy.deepcopy(self._post)
+            return copy.deepcopy(self._post)
 
     def start(self):
         self._stop_event.clear()
@@ -74,118 +90,134 @@ class Battle(object):
     def thread(self):
         logger.debug('Started')
 
-        while not self._stop_event.isSet():
-            msg = self._inputq.get()
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
 
-            if msg is None:
-                continue
+        while not self._stop_event.wait(timeout=0.01):
+            try:
+                msg = self._inputq.get(block=False)
 
-            self._process(msg)
+                if msg is None:
+                    continue
 
-            self._inputq.task_done()
+                self._process(msg)
+                self._inputq.task_done()
+
+            except queue.Empty:
+                pass
+
+            if self._need_update_post:
+                with self._lock:
+                    self._update_post()
+
+        self.loop.close()
 
         logger.debug('Finished')
 
     def _process(self, msg):
         self._last_atime = time.time()
 
+        self._old_data = copy.deepcopy(self._data)
+
         if msg.type == MSG_TYPE.UPDATE_ARENA:
-            self._last_stime = msg.stime
             self._data.update(msg.data)
 
         if msg.type in (MSG_TYPE.UPDATE_STATS, MSG_TYPE.UPDATE_BASE_STATE):
             stats = self._data.get('stats').setdefault(str(msg.cid), {})
             stats.update(msg.data.get('stats_data', {}))
 
-    def generate_post(self, post_type):
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        self._need_update_post = self._need_update_post or self.is_data_updated
 
-        if post_type == POST_TYPE.STATS:
-            proxy_team_1 = ProxyTeam(1, self._data)
-            proxy_team_2 = ProxyTeam(2, self._data)
+        # logger.warn(('need_update', self._need_update_post))
 
-            teams = [
-                {
-                    'id': proxy_team_1.id,
-                    'name': proxy_team_1.name,
-                    'meta': {
-                        'ingameTeam': proxy_team_1.attack_defence
+    def _update_post(self):
+
+        if not self.is_consistent:
+            return
+
+        # logger.warn('update')
+
+        proxy_team_1 = ProxyTeam(1, self._data)
+        proxy_team_2 = ProxyTeam(2, self._data)
+
+        teams = [
+            {
+                'id': proxy_team_1.id,
+                'name': proxy_team_1.name,
+                'meta': {
+                    'ingameTeam': proxy_team_1.attack_defence
+                }
+            },
+            {
+                'id': proxy_team_2.id,
+                'name': proxy_team_2.name,
+                'meta': {
+                    'ingameTeam': proxy_team_2.attack_defence
+                }
+            },
+        ]
+
+        players = list()
+
+        for cid in self._data.get('players', {}).keys():
+            proxy_player = ProxyPlayer(cid, self._data)
+            players.append({
+                'id': proxy_player.id,
+                'vendorId': proxy_player.vendorId,
+                'name': proxy_player.name,
+                'teamId': proxy_player.teamId,
+                'meta': {
+                    'tank': {
+                        'name': proxy_player.tank_name
                     }
                 },
-                {
-                    'id': proxy_team_2.id,
-                    'name': proxy_team_2.name,
-                    'meta': {
-                        'ingameTeam': proxy_team_2.attack_defence
-                    }
-                },
-            ]
+                'stats': {
+                    'kills': proxy_player.kills,
+                    'shots': proxy_player.shots,
+                    'spotted': proxy_player.spotted,
+                    'damageDealt': proxy_player.damageDealt,
+                    'damageBlocked': proxy_player.damageBlocked,
+                }
+            })
 
-            players = list()
+        proxy_arena = ProxyRound(self._data)
 
-            for cid in self._data.get('players', {}).keys():
-                proxy_player = ProxyPlayer(cid, self._data)
-                players.append({
-                    'id': proxy_player.id,
-                    'vendorId': proxy_player.vendorId,
-                    'name': proxy_player.name,
-                    'teamId': proxy_player.teamId,
-                    'meta': {
-                        'tank': {
-                            'name': proxy_player.tank_name
-                        }
-                    },
-                    'stats': {
-                        'kills': proxy_player.kills,
-                        'shots': proxy_player.shots,
-                        'spotted': proxy_player.spotted,
-                        'damageDealt': proxy_player.damageDealt,
-                        'damageBlocked': proxy_player.damageBlocked,
-                    }
-                })
+        post = {
+            'key': proxy_arena.id,
+            'meta': dict(),
+            'contestants': {
+                'teams': teams,
+                'players': players,
+            },
+            'timeline': list()
+        }
 
-            proxy_arena = ProxyRound(self._data)
+        def get_tasks_of(struct):
+            if isinstance(struct, asyncio.Task):
+                yield struct
+            elif isinstance(struct, dict):
+                for v in struct.values():
+                    yield from get_tasks_of(v)
+            elif isinstance(struct, list):
+                for v in struct:
+                    yield from get_tasks_of(v)
 
-            post = {
-                'key': proxy_arena.id,
-                'meta': dict(),
-                'contestants': {
-                    'teams': teams,
-                    'players': players,
-                },
-                'timeline': list()
-            }
+        tasks = [v for v in get_tasks_of(post)]
 
-            def get_tasks_of(struct):
-                if isinstance(struct, asyncio.Task):
-                    yield struct
-                elif isinstance(struct, dict):
-                    for v in struct.values():
-                        yield from get_tasks_of(v)
-                elif isinstance(struct, list):
-                    for v in struct:
-                        yield from get_tasks_of(v)
+        done, pending = self.loop.run_until_complete(asyncio.wait(tasks))
 
-            tasks = [v for v in get_tasks_of(post)]
-
-            completed, pending = loop.run_until_complete(asyncio.wait(tasks))
-
-            def set_result_to(struct, completed):
-                if isinstance(struct, dict):
-                    for k, v in struct.items():
-                        if isinstance(v, asyncio.Task):
-                            struct[k] = v.result()
-                        else:
-                            set_result_to(v, completed)
-                elif isinstance(struct, list):
-                    for v in struct:
+        def set_result_to(struct, completed):
+            if isinstance(struct, dict):
+                for k, v in struct.items():
+                    if isinstance(v, asyncio.Task):
+                        struct[k] = v.result()
+                    else:
                         set_result_to(v, completed)
+            elif isinstance(struct, list):
+                for v in struct:
+                    set_result_to(v, completed)
 
-            set_result_to(post, completed)
+        set_result_to(post, done)
 
-            self._old_data = copy.deepcopy(self._data)
-
-            loop.close()
-
-            return post
+        self._post = post
+        self._need_update_post = False
