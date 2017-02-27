@@ -1,3 +1,4 @@
+import asyncio
 import functools
 import time
 import uuid
@@ -65,8 +66,9 @@ async def getRoundKeyByPlayerCIDs(team1_cids, team2_cids):
     if App.App().config.mockpoll:
         return getRoundKeyByPlayerCIDs_mock(*sorted(team1_cids + team2_cids))
 
-    squad1_key = await getTeamKeyByPlayerCIDs(team1_cids)
-    squad2_key = await getTeamKeyByPlayerCIDs(team2_cids)
+    squad1_key, squad2_key = await asyncio.gather(
+        (getTeamKeyByPlayerCIDs(team1_cids), getTeamKeyByPlayerCIDs(team2_cids))
+    )
 
     matches_info = getMatches(squad1_key, squad2_key)
     matches_keys = [match_info.get('key') for match_info in matches_info if
@@ -87,11 +89,7 @@ async def getTeamKeyByPlayerCIDs(cids):
     if App.App().config.mockpoll:
         return getTeamKeyByPlayerCIDs_mock(*sorted(cids))
 
-    player_keys = []
-    for cid in cids:
-        player_key = await getPlayerKeyByPlayerCID(cid)
-        player_keys.append(player_key)
-
+    player_keys = await asyncio.gather(getPlayerKeyByPlayerCID(cid) for cid in cids)
     squads_info = getSquads(*player_keys)
     return next(iter(squads_info), {}).get('key')
 
@@ -108,11 +106,7 @@ async def getTeamNameByPlayerCIDs(cids):
     if App.App().config.mockpoll:
         return getTeamNameByPlayerCIDs_mock(*sorted(cids))
 
-    player_keys = []
-    for cid in cids:
-        player_key = await getPlayerKeyByPlayerCID(cid)
-        player_keys.append(player_key)
-
+    player_keys = await asyncio.gather(getPlayerKeyByPlayerCID(cid) for cid in cids)
     squads_info = getSquads(*player_keys)
     return next(iter(squads_info), {}).get('team', {}).get('name')
 
