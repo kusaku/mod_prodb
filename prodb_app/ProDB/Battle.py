@@ -8,6 +8,7 @@ from ProDB import logger
 from ProDB.ProxyTypes import ProxyTeam, ProxyPlayer, ProxyRound
 
 BATTLE_FINISH_TIMEOUT = 20.0  # seconds
+BATTLE_POST_TIMEOUT = 3.0  # seconds
 
 
 class MSG_TYPE:
@@ -44,15 +45,13 @@ class Battle(object):
                set(self._data.get('stats').keys()) == set(self._data.get('players').keys())
 
     @property
-    def is_data_updated(self):
-        return self._data != self._old_data
-
-    @property
     def is_post_updated(self):
-        return self._post != self._old_post
+        result = self._post_is_updated
+        self._post_is_updated = False
+        return result
 
-    def notify_update(self):
-        self._need_update_post = True
+    def external_data_updated(self):
+        self._post_needs_update = True
 
     def __init__(self, aid, outputq):
         self._aid = aid
@@ -64,16 +63,13 @@ class Battle(object):
         self._last_atime = time.time()
         self._counter = 0
         self._data = dict(period=dict(), stats=dict(), players=dict())
-        self._old_data = dict(period=dict(), stats=dict(), players=dict())
-        self._need_update_post = True
         self._post = dict()
-        self._old_post = dict()
+        self._post_needs_update = False
+        self._post_is_updated = False
 
     def get_post(self):
         # logger.warn('get_post')
         with self._lock:
-            if self.is_post_updated:
-                self._old_post = copy.deepcopy(self._post)
             return copy.deepcopy(self._post)
 
     def start(self):
@@ -106,7 +102,7 @@ class Battle(object):
             except queue.Empty:
                 pass
 
-            if self._need_update_post:
+            if self._post_needs_update:
                 with self._lock:
                     self._update_post()
 
@@ -117,7 +113,10 @@ class Battle(object):
     def _process(self, msg):
         self._last_atime = time.time()
 
-        self._old_data = copy.deepcopy(self._data)
+        if self.is_finished:
+            return
+
+        _old_data = copy.deepcopy(self._data)
 
         if msg.type == MSG_TYPE.UPDATE_ARENA:
             self._data.update(msg.data)
@@ -126,9 +125,32 @@ class Battle(object):
             stats = self._data.get('stats').setdefault(str(msg.cid), {})
             stats.update(msg.data.get('stats_data', {}))
 
-        self._need_update_post = self._need_update_post or self.is_data_updated
+        self._post_needs_update = self._post_needs_update or _old_data != self._data
 
         # logger.warn(('need_update', self._need_update_post))
+
+    # utulity to return tasks list from structure
+    def _get_tasks_of(self, struct):
+        if isinstance(struct, asyncio.Task):
+            yield struct
+        elif isinstance(struct, dict):
+            for v in struct.values():
+                yield from self._get_tasks_of(v)
+        elif isinstance(struct, list):
+            for v in struct:
+                yield from self._get_tasks_of(v)
+
+    # utulity to set tasks result to structure
+    def _set_result_to(self, struct, completed):
+        if isinstance(struct, dict):
+            for k, v in struct.items():
+                if isinstance(v, asyncio.Task):
+                    struct[k] = v.result()
+                else:
+                    self._set_result_to(v, completed)
+        elif isinstance(struct, list):
+            for v in struct:
+                self._set_result_to(v, completed)
 
     def _update_post(self):
 
@@ -136,6 +158,8 @@ class Battle(object):
             return
 
         # logger.warn('update')
+
+        _old_post = copy.deepcopy(self._post)
 
         proxy_team_1 = ProxyTeam(1, self._data)
         proxy_team_2 = ProxyTeam(2, self._data)
@@ -192,32 +216,14 @@ class Battle(object):
             'timeline': list()
         }
 
-        def get_tasks_of(struct):
-            if isinstance(struct, asyncio.Task):
-                yield struct
-            elif isinstance(struct, dict):
-                for v in struct.values():
-                    yield from get_tasks_of(v)
-            elif isinstance(struct, list):
-                for v in struct:
-                    yield from get_tasks_of(v)
+        new_tasks = [v for v in self._get_tasks_of(post)]
 
-        tasks = [v for v in get_tasks_of(post)]
+        done_tasks, pending_tasks = self.loop.run_until_complete(asyncio.wait(new_tasks, timeout=BATTLE_POST_TIMEOUT))
 
-        done, pending = self.loop.run_until_complete(asyncio.wait(tasks))
-
-        def set_result_to(struct, completed):
-            if isinstance(struct, dict):
-                for k, v in struct.items():
-                    if isinstance(v, asyncio.Task):
-                        struct[k] = v.result()
-                    else:
-                        set_result_to(v, completed)
-            elif isinstance(struct, list):
-                for v in struct:
-                    set_result_to(v, completed)
-
-        set_result_to(post, done)
-
-        self._post = post
-        self._need_update_post = False
+        for pending_task in pending_tasks:
+            pending_task.cancel()
+        else:
+            self._set_result_to(post, done_tasks)
+            self._post = post
+            self._post_needs_update = False
+            self._post_is_updated = self._post_is_updated or _old_post != self._post

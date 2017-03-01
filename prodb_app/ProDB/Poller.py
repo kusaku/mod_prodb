@@ -39,19 +39,11 @@ def getMatches(*squads_keys):
 
 
 @functools.lru_cache()
-def getMatchDetail(match_key):
+def getRoundsInfo(match_key):
     url = 'http://127.0.0.1:5000/api/matches/{}/detail'.format(match_key)
     logger.debug(url)
     match_info = requests.get(url).json()
     return match_info.get('rounds')
-
-
-@functools.lru_cache()
-def getRound(*matches_keys):
-    for match_key in matches_keys:
-        for round_info in getMatchDetail(match_key):
-            if round_info.get('roundStatus') in ('live', 'open'):
-                return round_info
 
 
 @functools.lru_cache()
@@ -62,19 +54,28 @@ def getRoundKeyByPlayerCIDs_mock(*cids):
     return result
 
 
+async def getRoundInfosAsync(match_key):
+    return getRoundsInfo(match_key)
+
+
 async def getRoundKeyByPlayerCIDs(team1_cids, team2_cids):
     if App.App().config.mockpoll:
         return getRoundKeyByPlayerCIDs_mock(*sorted(team1_cids + team2_cids))
 
-    squad1_key, squad2_key = await asyncio.gather(
+    squads_keys = await asyncio.gather(
         (getTeamKeyByPlayerCIDs(team1_cids), getTeamKeyByPlayerCIDs(team2_cids))
     )
 
-    matches_info = getMatches(squad1_key, squad2_key)
-    matches_keys = [match_info.get('key') for match_info in matches_info if
+    matches_infos = getMatches(*sorted(squads_keys))
+
+    matches_keys = [match_info.get('key') for match_info in matches_infos if
                     match_info.get('matchStatus') in ('live', 'open')]
-    round_info = getRound(*matches_keys)
-    return round_info.get('key')
+
+    rounds_infos = await asyncio.gather(getRoundInfosAsync(match_key) for match_key in matches_keys)
+
+    # todo need to detect here most relevant round
+    return next(round_info.get('key') for round_info in rounds_infos if
+                round_info.get('roundStatus') in ('live', 'open'))
 
 
 @functools.lru_cache()
@@ -90,7 +91,7 @@ async def getTeamKeyByPlayerCIDs(cids):
         return getTeamKeyByPlayerCIDs_mock(*sorted(cids))
 
     player_keys = await asyncio.gather(getPlayerKeyByPlayerCID(cid) for cid in cids)
-    squads_info = getSquads(*player_keys)
+    squads_info = getSquads(*sorted(player_keys))
     return next(iter(squads_info), {}).get('key')
 
 
@@ -107,7 +108,7 @@ async def getTeamNameByPlayerCIDs(cids):
         return getTeamNameByPlayerCIDs_mock(*sorted(cids))
 
     player_keys = await asyncio.gather(getPlayerKeyByPlayerCID(cid) for cid in cids)
-    squads_info = getSquads(*player_keys)
+    squads_info = getSquads(*sorted(player_keys))
     return next(iter(squads_info), {}).get('team', {}).get('name')
 
 
@@ -133,8 +134,7 @@ def cache_clear_all():
     getPlayer.cache_clear()
     getSquads.cache_clear()
     getMatches.cache_clear()
-    getMatchDetail.cache_clear()
-    getRound.cache_clear()
+    getRoundsInfo.cache_clear()
     getRoundKeyByPlayerCIDs_mock.cache_clear()
     getTeamKeyByPlayerCIDs_mock.cache_clear()
     getTeamNameByPlayerCIDs_mock.cache_clear()
@@ -146,8 +146,7 @@ def cache_info_all():
         'getPlayer': getPlayer.cache_info(),
         'getSquads': getSquads.cache_info(),
         'getMatches': getMatches.cache_info(),
-        'getMatchDetail': getMatchDetail.cache_info(),
-        'getRound': getRound.cache_info(),
+        'getRoundsInfo': getRoundsInfo.cache_info(),
         'getRoundKeyByPlayerCIDs_mock': getRoundKeyByPlayerCIDs_mock.cache_info(),
         'getTeamKeyByPlayerCIDs_mock': getTeamKeyByPlayerCIDs_mock.cache_info(),
         'getTeamNameByPlayerCIDs_mock': getTeamNameByPlayerCIDs_mock.cache_info(),

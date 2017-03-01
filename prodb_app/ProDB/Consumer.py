@@ -91,6 +91,12 @@ class Consumer(object):
     def callback(self, ch, method, properties, body):
         try:
             msg = msg_packet(**json.loads(body.decode('utf-8')))
+
+            if self._config.rmq_session_dump is not None:
+                with open(self._config.rmq_session_dump, 'a') as fh:
+                    json.dump(msg._asdict(), fh, sort_keys=True)
+                    fh.write('\n')
+
             # logger.exception(json.dumps(msg, indent=4))
             self._queue.put(msg)
         except Exception as e:

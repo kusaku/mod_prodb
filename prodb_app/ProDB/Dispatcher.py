@@ -10,7 +10,6 @@ REFRESH_PERIOD = 3.0
 
 class Dispatcher(object):
     def __init__(self):
-        self.config = App.App().config
         self._inputq = App.App().inputq
         self._outputq = App.App().outputq
         self._pool = None
@@ -32,8 +31,8 @@ class Dispatcher(object):
         self._stop_event.set()
         while len(self._pool):
             aid, battle = self._pool.popitem()
+            logger.info('Finishing Battle {}'.format(str(aid)[-5:]))
             battle.stop()
-            logger.info('Battle {} stopped'.format(aid))
         self._thread_in = None
         self._thread_out = None
 
@@ -47,10 +46,10 @@ class Dispatcher(object):
                 continue
 
             if msg.aid not in self._pool:
+                logger.info('Starting Battle {}'.format(str(msg.aid)[-5:]))
                 battle = Battle.Battle(msg.aid, self._outputq)
                 self._pool[msg.aid] = battle
                 battle.start()
-                logger.info('Battle {} started'.format(msg.aid))
             else:
                 battle = self._pool[msg.aid]
 
@@ -69,7 +68,7 @@ class Dispatcher(object):
 
             for aid, battle in list(self._pool.items()):
                 # if poll_represh < 0.0:
-                #     battle.notify_update()
+                #     battle.external_data_updated()
 
                 if battle.is_post_updated:
                     post_data = battle.get_post()
@@ -77,8 +76,8 @@ class Dispatcher(object):
                     self._outputq.put(msg)
 
                 if battle.is_finished:
+                    logger.info('Finishing Battle {}'.format(str(aid)[-5:]))
                     battle.stop()
-                    logger.info('Battle {} stopped'.format(aid))
                     del self._pool[aid]
 
             # if poll_represh < 0.0:
