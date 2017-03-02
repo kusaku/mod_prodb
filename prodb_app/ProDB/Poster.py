@@ -1,10 +1,10 @@
 import asyncio
-import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
 from ProDB import App
 from ProDB import logger
+from ProDB.ProDB import postStats
 
 MAX_WORKERS = 4
 
@@ -51,7 +51,7 @@ class Poster(object):
                     continue
                 aid, post_data = msg
                 try:
-                    future = loop.run_in_executor(None, _post, aid, post_data)
+                    future = loop.run_in_executor(None, postStats, aid, post_data)
                 except:
                     continue
                 futures.add(future)
@@ -62,21 +62,3 @@ class Poster(object):
                 await gathered_future
             else:
                 gathered_future.cancel()
-
-
-def _post(aid: int, post_data: dict):
-    try:
-        key = post_data.pop('key')
-        if App.App().config.mockpost:
-            if not os.path.exists('mockpost'):
-                os.makedirs('mockpost')
-            fname = 'mockpost/arena-{}.json'.format(key)
-            with open(fname, 'wt') as fp:
-                import json
-                json.dump(post_data, fp=fp, indent=4)
-                logger.info('[mock] Post data is written to {}'.format(fname))
-                fp.write('\n')
-    except:
-        logger.exception('_post exception!')
-    # requests.post('http://127.0.0.1', data)
-    return

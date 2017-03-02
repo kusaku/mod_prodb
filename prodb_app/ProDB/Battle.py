@@ -4,11 +4,8 @@ import queue
 import threading
 import time
 
-from ProDB import logger
+from ProDB import logger, BATTLE_FINISH_TIMEOUT, BATTLE_POST_TIMEOUT
 from ProDB.ProxyTypes import ProxyTeam, ProxyPlayer, ProxyRound
-
-BATTLE_FINISH_TIMEOUT = 20.0  # seconds
-BATTLE_POST_TIMEOUT = 3.0  # seconds
 
 
 class MSG_TYPE:
@@ -88,6 +85,7 @@ class Battle(object):
 
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
+        self.loop.set_exception_handler(lambda *args: None)
 
         while not self._stop_event.wait(timeout=0.01):
             try:
@@ -125,8 +123,32 @@ class Battle(object):
             stats = self._data.get('stats').setdefault(str(msg.cid), {})
             stats.update(msg.data.get('stats_data', {}))
 
+        # self._data.update(
+        #     {
+        #         'stats': {
+        #             '1': dict(),
+        #             '2': dict(),
+        #             '3': dict(),
+        #             '4': dict(),
+        #         },
+        #
+        #         'players': {
+        #             '1': {'team': 1, 'name': 'player1', 'vehicle_name': 'ssss!'},
+        #             '2': {'team': 1, 'name': 'player2', 'vehicle_name': 'ssss!'},
+        #             '3': {'team': 2, 'name': 'player3', 'vehicle_name': 'ssss!'},
+        #             '4': {'team': 2, 'name': 'player4', 'vehicle_name': 'ssss!'},
+        #         }
+        #     }
+        # )
+
         self._post_needs_update = self._post_needs_update or _old_data != self._data
 
+        # self._post_needs_update = True
+
+        # logger.warn(json.dumps(self._data, indent=4))
+        # logger.warn('Is finished? {!r}'.format(self.is_finished))
+        # logger.warn('Is consistent? {!r}'.format(self.is_consistent))
+        # logger.warn('Does post need update? {!r}'.format(self._post_needs_update))
         # logger.warn(('need_update', self._need_update_post))
 
     # utulity to return tasks list from structure
@@ -218,10 +240,21 @@ class Battle(object):
 
         new_tasks = [v for v in self._get_tasks_of(post)]
 
-        done_tasks, pending_tasks = self.loop.run_until_complete(asyncio.wait(new_tasks, timeout=BATTLE_POST_TIMEOUT))
+        future = asyncio.wait(new_tasks, timeout=BATTLE_POST_TIMEOUT, return_when=asyncio.FIRST_EXCEPTION)
+        done_tasks, pending_tasks = self.loop.run_until_complete(future)
 
-        for pending_task in pending_tasks:
-            pending_task.cancel()
+        if len(pending_tasks) > 0:
+            for task in done_tasks:
+                if task.exception() is not None:
+                    logger.error('Error {} in {}'.format(repr(task.exception().args[0]), task._coro.__name__))
+
+            for task in pending_tasks:
+                task.cancel()
+
+            # sleep?
+            logger.error('Generate post failed, sleepeng {} seconds'.format(BATTLE_POST_TIMEOUT))
+            self.loop.run_until_complete(asyncio.sleep(BATTLE_POST_TIMEOUT))
+
         else:
             self._set_result_to(post, done_tasks)
             self._post = post

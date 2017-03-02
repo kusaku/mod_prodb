@@ -7,14 +7,12 @@ class ProxyTeam:
     @property
     def id(self):
         cids = [cid for cid, player in self.data.get('players', {}).items() if player.get('team') == self.index]
-        loop = asyncio.get_event_loop()
-        return loop.create_task(Poller.getTeamKeyByPlayerCIDs(cids))
+        return asyncio.ensure_future(Poller.getTeamKeyByPlayerCIDs(cids))
 
     @property
     def name(self):
         cids = [cid for cid, player in self.data.get('players', {}).items() if player.get('team') == self.index]
-        loop = asyncio.get_event_loop()
-        return loop.create_task(Poller.getTeamNameByPlayerCIDs(cids))
+        return asyncio.ensure_future(Poller.getTeamNameByPlayerCIDs(cids))
 
     @property
     def attack_defence(self):
@@ -31,8 +29,7 @@ class ProxyTeam:
 class ProxyPlayer:
     @property
     def id(self):
-        loop = asyncio.get_event_loop()
-        return loop.create_task(Poller.getPlayerKeyByPlayerCID(self.cid))
+        return asyncio.ensure_future(Poller.getPlayerKeyByPlayerCID(self.cid))
 
     @property
     def vendorId(self):
@@ -83,7 +80,6 @@ class ProxyRound:
 
     @property
     def id(self):
-        loop = asyncio.get_event_loop()
         team1_cids = [cid for cid, player in self.data.get('players', {}).items() if player.get('team') == 1]
         team2_cids = [cid for cid, player in self.data.get('players', {}).items() if player.get('team') == 2]
-        return loop.create_task(Poller.getRoundKeyByPlayerCIDs(team1_cids, team2_cids))
+        return asyncio.ensure_future(Poller.getRoundKeyByPlayerCIDs(team1_cids, team2_cids))

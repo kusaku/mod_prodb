@@ -6,7 +6,13 @@ import sys
 
 import colorlog
 
-DEVELOPMENT = False
+# todo - move this constants to config file
+CACHE_CLEAR_TIMEOUT = 15.0  # seconds
+BATTLE_FINISH_TIMEOUT = 20.0  # seconds
+BATTLE_POST_TIMEOUT = 3.0  # seconds
+
+PRO_DB_USER = 'wot-stats'
+PRO_DB_SECRET = '38o5diufjfqct6gm2chg1hnmncociqf0leg8qq8'
 
 
 class autodict(collections.defaultdict):
