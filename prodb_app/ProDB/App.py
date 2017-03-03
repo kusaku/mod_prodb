@@ -5,15 +5,12 @@ import signal
 import sys
 import threading
 
-from ProDB import logger, file_logger
-from ProDB.Config import Config
-from ProDB.Consumer import Consumer
-from ProDB.Dispatcher import Dispatcher
-from ProDB.Poster import Poster
-from ProDB.Singleton import Singleton
-
-restart_event = threading.Event()
-stop_event = threading.Event()
+from .Config import Config
+from .Consumer import Consumer
+from .Dispatcher import Dispatcher
+from .Logger import FileLogger, Logger
+from .Poster import Poster
+from .Singleton import Singleton
 
 
 class App(metaclass=Singleton):
@@ -24,13 +21,18 @@ class App(metaclass=Singleton):
     _dispatcher = None
     _poster = None
 
-    config = None
-    inputq = queue.Queue()
-    outputq = queue.Queue()
+    _restart_event = threading.Event()
+    _stop_event = threading.Event()
+
+    _config = None
+    config = property(lambda self: self._config)
+
+    _inputq = queue.Queue()
+    _outputq = queue.Queue()
 
     def __init__(self):
-        signal.signal(signal.SIGBREAK, lambda *args: restart_event.set())
-        signal.signal(signal.SIGINT, lambda *args: stop_event.set())
+        signal.signal(signal.SIGBREAK, lambda *args: self._restart_event.set())
+        signal.signal(signal.SIGINT, lambda *args: self._stop_event.set())
 
         parser = argparse.ArgumentParser()
         parser.add_argument('--verbose', dest='verbose', action='store_true', help='verbose mode')
@@ -41,51 +43,51 @@ class App(metaclass=Singleton):
         args = parser.parse_args()
 
         if args.filelog:
-            file_logger.enable()
+            FileLogger.enable()
 
-        logger.info('Command line is {}'.format(' '.join(sys.argv)))
+        Logger.info('Command line is {}'.format(' '.join(sys.argv)))
 
         if args.verbose:
-            logger.setLevel(logging.DEBUG)
+            Logger.setLevel(logging.DEBUG)
         else:
-            logger.setLevel(logging.INFO)
+            Logger.setLevel(logging.INFO)
             # suppress traces
-            logger.exception = logger.error
+            Logger.exception = Logger.error
 
-        logger.info('Press Ctrl+C to stop, Ctrl+Break to reload')
+        Logger.info('Press Ctrl+C to stop, Ctrl+Break to reload')
 
         self._args = args
 
     def mainloop(self):
         self.start()
-        while not stop_event.wait(0.1):
+        while not self._stop_event.wait(0.1):
             self.check_restart()
         self.stop()
-        restart_event.wait(0.1)  # wait other threads
-        logger.info('Normal exit')
+        self._restart_event.wait(0.1)  # wait other threads
+        Logger.info('Normal exit')
 
     def start(self):
-        self.config = Config(self._args)
-        self._consumer = Consumer()
+        self._config = Config(self._args)
+        self._consumer = Consumer(self._config, self._inputq)
         self._consumer.start()
-        self._dispatcher = Dispatcher()
+        self._dispatcher = Dispatcher(self._inputq, self._outputq)
         self._dispatcher.start()
-        self._poster = Poster()
+        self._poster = Poster(self._config, self._outputq)
         self._poster.start()
 
     def stop(self):
         self._consumer.stop()
         self._consumer = None
-        self.inputq.put(None)
-        self.outputq.put(None)
+        self._inputq.put(None)
+        self._outputq.put(None)
         self._dispatcher.stop()
         self._dispatcher = None
         self._poster.stop()
         self._poster = None
 
     def check_restart(self):
-        if restart_event.isSet():
-            logger.info('Restarting workers')
+        if self._restart_event.isSet():
+            Logger.info('Restarting workers')
             self.stop()
             self.start()
-            restart_event.clear()
+            self._restart_event.clear()

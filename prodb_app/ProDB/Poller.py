@@ -1,10 +1,9 @@
 import asyncio
 import random
 
-from ProDB import App
-from ProDB.ProDB import getPlayer, getSquads, getMatches, getRoundsInfo
-from ProDB.ProDBMock import getRoundKeyByPlayerCIDs_mock, getTeamKeyByPlayerCIDs_mock, getTeamNameByPlayerCIDs_mock, \
-    getPlayerKeyByPlayerCID_mock
+from .ProDBApi import getMatches, getPlayer, getRoundsInfo, getSquads
+from .ProDBMock import getPlayerKeyByPlayerCID_mock, getRoundKeyByPlayerCIDs_mock, getTeamKeyByPlayerCIDs_mock, \
+    getTeamNameByPlayerCIDs_mock
 
 
 async def getRoundInfosAsync(match_key):
@@ -12,7 +11,8 @@ async def getRoundInfosAsync(match_key):
 
 
 async def getRoundKeyByPlayerCIDs(team1_cids, team2_cids):
-    if App.App().config.mockpoll:
+    from ProDB.App import App
+    if App().config.mockpoll:
         await asyncio.sleep(random.random())
         return getRoundKeyByPlayerCIDs_mock(*sorted(team1_cids + team2_cids))
 
@@ -37,7 +37,8 @@ async def getRoundKeyByPlayerCIDs(team1_cids, team2_cids):
 
 
 async def getTeamKeyByPlayerCIDs(cids):
-    if App.App().config.mockpoll:
+    from ProDB.App import App
+    if App().config.mockpoll:
         await asyncio.sleep(random.random())
         return getTeamKeyByPlayerCIDs_mock(*sorted(cids))
 
@@ -53,7 +54,8 @@ async def getTeamKeyByPlayerCIDs(cids):
 
 
 async def getTeamNameByPlayerCIDs(cids):
-    if App.App().config.mockpoll:
+    from ProDB.App import App
+    if App().config.mockpoll:
         await asyncio.sleep(random.random())
         return getTeamNameByPlayerCIDs_mock(*sorted(cids))
 
@@ -68,7 +70,8 @@ async def getTeamNameByPlayerCIDs(cids):
 
 
 async def getPlayerKeyByPlayerCID(cid):
-    if App.App().config.mockpoll:
+    from ProDB.App import App
+    if App().config.mockpoll:
         await asyncio.sleep(random.random())
         return getPlayerKeyByPlayerCID_mock(cid)
 

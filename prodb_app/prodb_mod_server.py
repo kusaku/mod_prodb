@@ -1,4 +1,4 @@
-from ProDB.App import App
+from ProDB import App
 
 if __name__ == '__main__':
-    App().mainloop()
+    App.App().mainloop()

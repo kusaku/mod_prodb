@@ -1,6 +1,6 @@
 import asyncio
 
-from ProDB import Poller
+from . import Poller
 
 
 class ProxyTeam:

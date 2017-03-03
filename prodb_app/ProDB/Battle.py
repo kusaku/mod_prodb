@@ -4,8 +4,9 @@ import queue
 import threading
 import time
 
-from ProDB import logger, BATTLE_FINISH_TIMEOUT, BATTLE_POST_TIMEOUT
-from ProDB.ProxyTypes import ProxyTeam, ProxyPlayer, ProxyRound
+from . import BATTLE_FINISH_TIMEOUT, BATTLE_POST_TIMEOUT
+from .Logger import Logger
+from .ProxyTypes import ProxyPlayer, ProxyRound, ProxyTeam
 
 
 class MSG_TYPE:
@@ -65,7 +66,7 @@ class Battle(object):
         self._post_is_updated = False
 
     def get_post(self):
-        # logger.warn('get_post')
+        # Logger.warn('get_post')
         with self._lock:
             return copy.deepcopy(self._post)
 
@@ -81,7 +82,7 @@ class Battle(object):
         self._thread = None
 
     def thread(self):
-        logger.debug('Started')
+        Logger.debug('Started')
 
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
@@ -106,7 +107,7 @@ class Battle(object):
 
         self.loop.close()
 
-        logger.debug('Finished')
+        Logger.debug('Finished')
 
     def _process(self, msg):
         self._last_atime = time.time()
@@ -145,11 +146,11 @@ class Battle(object):
 
         # self._post_needs_update = True
 
-        # logger.warn(json.dumps(self._data, indent=4))
-        # logger.warn('Is finished? {!r}'.format(self.is_finished))
-        # logger.warn('Is consistent? {!r}'.format(self.is_consistent))
-        # logger.warn('Does post need update? {!r}'.format(self._post_needs_update))
-        # logger.warn(('need_update', self._need_update_post))
+        # Logger.warn(json.dumps(self._data, indent=4))
+        # Logger.warn('Is finished? {!r}'.format(self.is_finished))
+        # Logger.warn('Is consistent? {!r}'.format(self.is_consistent))
+        # Logger.warn('Does post need update? {!r}'.format(self._post_needs_update))
+        # Logger.warn(('need_update', self._need_update_post))
 
     # utulity to return tasks list from structure
     def _get_tasks_of(self, struct):
@@ -179,7 +180,7 @@ class Battle(object):
         if not self.is_consistent:
             return
 
-        # logger.warn('update')
+        # Logger.warn('update')
 
         _old_post = copy.deepcopy(self._post)
 
@@ -246,13 +247,13 @@ class Battle(object):
         if len(pending_tasks) > 0:
             for task in done_tasks:
                 if task.exception() is not None:
-                    logger.error('Error {} in {}'.format(repr(task.exception().args[0]), task._coro.__name__))
+                    Logger.Logger.error('Error {} in {}'.format(repr(task.exception().args[0]), task._coro.__name__))
 
             for task in pending_tasks:
                 task.cancel()
 
             # sleep?
-            logger.error('Generate post failed, sleepeng {} seconds'.format(BATTLE_POST_TIMEOUT))
+            Logger.Logger.error('Generate post failed, sleepeng {} seconds'.format(BATTLE_POST_TIMEOUT))
             self.loop.run_until_complete(asyncio.sleep(BATTLE_POST_TIMEOUT))
 
         else:

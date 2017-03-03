@@ -1,7 +1,7 @@
 import collections
 import json
 
-from ProDB import logger
+from .Logger import Logger
 
 
 def Config(args):
@@ -25,10 +25,10 @@ def Config(args):
             loaded_config = json.load(infile)
             config = {key: loaded_config.get(key, config[key]) for key in config_keys}
     except Exception as ex:
-        logger.error('Config file \'{}\' not loaded: {}, using defaults'.format(filepath, ex))
+        Logger.error('Config file \'{}\' not loaded: {}, using defaults'.format(filepath, ex))
     else:
-        logger.debug('Loaded config file \'{}\''.format(filepath))
+        Logger.debug('Loaded config file \'{}\''.format(filepath))
 
-    logger.debug('Config:\n{}\n{}\n{}'.format('*' * 80, json.dumps(config, indent=4, sort_keys=True), '*' * 80))
+    Logger.debug('Config:\n{}\n{}\n{}'.format('*' * 80, json.dumps(config, indent=4, sort_keys=True), '*' * 80))
 
     return collections.namedtuple('Config', sorted(config_keys))(**config)

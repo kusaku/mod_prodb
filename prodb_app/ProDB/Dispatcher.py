@@ -1,16 +1,16 @@
 import threading
 import time
 
-import ProDB.ProDB
-from ProDB import App, CACHE_CLEAR_TIMEOUT
-from ProDB import Battle
-from ProDB import logger
+from . import CACHE_CLEAR_TIMEOUT
+from .Battle import Battle
+from .Logger import Logger
+from .ProDBApi import cache_clear_all
 
 
 class Dispatcher(object):
-    def __init__(self):
-        self._inputq = App.App().inputq
-        self._outputq = App.App().outputq
+    def __init__(self, inputq, outputq):
+        self._inputq = inputq
+        self._outputq = outputq
         self._pool = None
         self._stop_event = threading.Event()
         self._thread_in = None
@@ -34,14 +34,14 @@ class Dispatcher(object):
         self._stop_event.set()
         while len(self._pool):
             aid, battle = self._pool.popitem()
-            # logger.info('Finishing Battle {}'.format(str(aid)[-5:]))
+            # Logger.info('Finishing Battle {}'.format(str(aid)[-5:]))
             battle.stop()
         self._thread_in = None
         self._thread_out = None
         self._thread_ctrl = None
 
     def thread_in(self):
-        logger.debug('Started')
+        Logger.debug('Started')
 
         while not self._stop_event.isSet():
             msg = self._inputq.get()
@@ -50,8 +50,8 @@ class Dispatcher(object):
                 continue
 
             if msg.aid not in self._pool:
-                # logger.info('Starting Battle {}'.format(str(msg.aid)[-5:]))
-                battle = Battle.Battle(msg.aid, self._outputq)
+                # Logger.info('Starting Battle {}'.format(str(msg.aid)[-5:]))
+                battle = Battle(msg.aid, self._outputq)
                 self._pool[msg.aid] = battle
                 battle.start()
             else:
@@ -61,10 +61,10 @@ class Dispatcher(object):
 
             self._inputq.task_done()
 
-        logger.debug('Finished')
+        Logger.debug('Finished')
 
     def thread_out(self):
-        logger.debug('Started')
+        Logger.debug('Started')
 
         while not self._stop_event.wait(0.01):
 
@@ -75,22 +75,22 @@ class Dispatcher(object):
                     self._outputq.put(msg)
 
                 if battle.is_finished:
-                    # logger.info('Finishing Battle {}'.format(str(aid)[-5:]))
+                    # Logger.info('Finishing Battle {}'.format(str(aid)[-5:]))
                     battle.stop()
                     del self._pool[aid]
 
-        logger.debug('Finished')
+        Logger.debug('Finished')
 
     def thread_ctrl(self):
-        logger.debug('Started')
+        Logger.debug('Started')
 
         last_clear_cache_time = time.time()
 
         while not self._stop_event.wait(1.0):
             if len(self._pool) > 0 and time.time() - last_clear_cache_time > CACHE_CLEAR_TIMEOUT:
-                ProDB.ProDB.cache_clear_all()
+                cache_clear_all()
                 last_clear_cache_time = time.time()
                 for battle in self._pool.values():
                     battle.external_data_updated()
 
-        logger.debug('Finished')
+        Logger.debug('Finished')

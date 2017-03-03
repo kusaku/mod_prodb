@@ -2,17 +2,15 @@ import asyncio
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-from ProDB import App
-from ProDB import logger
-from ProDB.ProDB import postStats
-
-MAX_WORKERS = 4
+from ProDB import MAX_POSTER_WORKERS
+from ProDB.Logger import Logger
+from .ProDBApi import postStats
 
 
 class Poster(object):
-    def __init__(self):
-        self.config = App.App().config
-        self._inputq = App.App().outputq
+    def __init__(self, config, outputq):
+        self.config = config
+        self._inputq = outputq
         self._stop_event = threading.Event()
         self._thread = None
         self._futures = set()
@@ -29,9 +27,9 @@ class Poster(object):
         self._thread = None
 
     def thread(self):
-        logger.debug('Started')
-        executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
-        # executor = ProcessPoolExecutor(max_workers=MAX_WORKERS)
+        Logger.debug('Started')
+        executor = ThreadPoolExecutor(max_workers=MAX_POSTER_WORKERS)
+        # executor = ProcessPoolExecutor(max_workers=MAX_POSTER_WORKERS)
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.set_default_executor(executor)
@@ -39,13 +37,13 @@ class Poster(object):
             loop.run_until_complete(self._poster())
         finally:
             loop.close()
-        logger.debug('Finished')
+        Logger.debug('Finished')
 
     async def _poster(self):
         loop = asyncio.get_event_loop()
         while not self._stop_event.isSet():
             futures = set()
-            while not self._stop_event.isSet() and len(futures) < MAX_WORKERS:
+            while not self._stop_event.isSet() and len(futures) < MAX_POSTER_WORKERS:
                 msg = self._inputq.get()
                 if msg is None:
                     continue
@@ -58,7 +56,7 @@ class Poster(object):
                 self._inputq.task_done()
             gathered_future = asyncio.gather(*futures, return_exceptions=True)
             if not self._stop_event.isSet():
-                # logger.warn(await gathered_future)
+                # Logger.warn(await gathered_future)
                 await gathered_future
             else:
                 gathered_future.cancel()
