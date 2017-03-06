@@ -40,25 +40,21 @@ class App(metaclass=Singleton):
         parser.add_argument('--mockpoll', dest='mockpoll', action='store_true', help='mock ProDB service poll')
         parser.add_argument('--mockpost', dest='mockpost', action='store_true', help='mock ProDB service post')
         parser.add_argument('--config', dest='config', default='prodb_mod_server.cfg', help='configuration file')
-        args = parser.parse_args()
+        self._args = parser.parse_args()
 
-        if args.filelog:
+        if self._args.filelog:
             FileLogger.enable()
 
-        Logger.info('Command line is {}'.format(' '.join(sys.argv)))
-
-        if args.verbose:
+        if self._args.verbose:
             Logger.setLevel(logging.DEBUG)
         else:
             Logger.setLevel(logging.INFO)
             # suppress traces
             Logger.exception = Logger.error
 
-        Logger.info('Press Ctrl+C to stop, Ctrl+Break to reload')
-
-        self._args = args
-
     def mainloop(self):
+        Logger.info('Command line is {}'.format(' '.join(sys.argv)))
+        Logger.info('Press Ctrl+C to stop, Ctrl+Break to reload')
         self.start()
         while not self._stop_event.wait(0.1):
             self.check_restart()
