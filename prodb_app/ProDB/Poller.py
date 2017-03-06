@@ -18,12 +18,12 @@ async def getRoundKeyByPlayerCIDs(team1_cids, team2_cids):
         await asyncio.sleep(random.random())
         return getRoundKeyByPlayerCIDs_mock(*sorted(team1_cids + team2_cids))
 
-    assert all(team1_cids), 'No players in team'
-    assert all(team2_cids), 'No players in team'
+    assert all(team1_cids), 'getRoundKeyByPlayerCIDs - no players in team 1'
+    assert all(team2_cids), 'getRoundKeyByPlayerCIDs - no players in team 2'
 
     squads_keys = await asyncio.gather(*(getTeamKeyByPlayerCIDs(team1_cids), getTeamKeyByPlayerCIDs(team2_cids)))
 
-    assert all(squads_keys), 'No ProDB info for all Squads'
+    assert all(squads_keys), 'getRoundKeyByPlayerCIDs - no ProDB info for all Squads'
 
     matches_infos = getMatches(*sorted(squads_keys))
     matches_keys = [match_info.get('key') for match_info in matches_infos if
@@ -31,7 +31,7 @@ async def getRoundKeyByPlayerCIDs(team1_cids, team2_cids):
 
     rounds_infos = await asyncio.gather(*[getRoundInfosAsync(match_key) for match_key in matches_keys])
 
-    assert all(rounds_infos), 'No ProDB info for all Rounds'
+    assert all(rounds_infos), 'getRoundKeyByPlayerCIDs - no ProDB info for all Rounds'
 
     # todo need to detect here most relevant round
     return next(round_info.get('key') for round_info in itertools.chain(*rounds_infos) if
@@ -45,11 +45,11 @@ async def getTeamKeyByPlayerCIDs(cids):
         await asyncio.sleep(random.random())
         return getTeamKeyByPlayerCIDs_mock(*sorted(cids))
 
-    assert len(cids) > 0, 'No players in team'
+    assert len(cids) > 0, 'getTeamKeyByPlayerCIDs - no players in team'
 
     player_keys = await asyncio.gather(*[getPlayerKeyByPlayerCID(cid) for cid in cids])
 
-    assert all(player_keys), 'No ProDB info for all players'
+    assert all(player_keys), 'getTeamKeyByPlayerCIDs - no ProDB info for all players'
 
     squads_info = getSquads(*sorted(player_keys))
 
@@ -63,11 +63,11 @@ async def getTeamNameByPlayerCIDs(cids):
         await asyncio.sleep(random.random())
         return getTeamNameByPlayerCIDs_mock(*sorted(cids))
 
-    assert len(cids) > 0, 'No players in team'
+    assert len(cids) > 0, 'getTeamNameByPlayerCIDs - no players in team'
 
     player_keys = await asyncio.gather(*[getPlayerKeyByPlayerCID(cid) for cid in cids])
 
-    assert all(player_keys), 'No ProDB info for all players'
+    assert all(player_keys), 'getTeamNameByPlayerCIDs - no ProDB info for all players'
 
     squads_info = getSquads(*sorted(player_keys))
     return next(iter(squads_info), {}).get('team', {}).get('name')

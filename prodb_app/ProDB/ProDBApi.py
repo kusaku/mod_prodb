@@ -14,8 +14,8 @@ def getAuthToken():
     data = {'name': PRO_DB_USER, 'secret': PRO_DB_SECRET}
     headers = {'Content-type': 'application/json', 'Accept': 'application/json'}
     resp = requests.post(url, json=data, headers=headers)
-    assert resp.text == '"OK"', 'getAuthToken bad reply - {}'.format(resp.text)
-    assert resp.status_code == 200, 'getAuthToken bad status: {}'.format(resp.status_code)
+    assert resp.text == '"OK"', 'getAuthToken - bad reply - {}'.format(resp.text)
+    assert resp.status_code == 200, 'getAuthToken - bad status: {}'.format(resp.status_code)
     return resp.headers.get('X-Auth-Token')
 
 
@@ -26,37 +26,39 @@ def getPlayer(cid):
     Logger.debug('Query GET {}'.format(url))
     headers = {'X-Auth-Token': getAuthToken(), 'Accept': 'application/json'}
     resp = requests.get(url, headers=headers)
-    assert resp.status_code == 200, 'getPlayer bad status: {}'.format(resp.status_code)
+    assert resp.status_code == 200, 'getPlayer - bad status: {}'.format(resp.status_code)
     ret = resp.json()
-    assert len(ret) > 0, 'getPlayer no ProDB info for Player id={}'.format(cid)
+    # assert len(ret) > 0, 'getPlayer - no ProDB info for Player id={}'.format(cid)
     return ret
 
 
 @functools.lru_cache()
 def getSquads(*players_keys):
+    assert len(players_keys) > 0, 'getSquads - no cids passed'
     players_keys = ','.join(players_keys)
     url = 'https://prodb.tet.io/api/team-squads?' \
           'gamePlatform=a5480e62-61e4-4091-83ca-2ab364f1d645&players={}'.format(players_keys)
     Logger.debug('Query GET {}'.format(url))
     headers = {'X-Auth-Token': getAuthToken(), 'Accept': 'application/json'}
     resp = requests.get(url, headers=headers)
-    assert resp.status_code == 200, 'getSquads bad status: {}'.format(resp.status_code)
+    assert resp.status_code == 200, 'getSquads - bad status: {}'.format(resp.status_code)
     ret = resp.json()
-    assert len(ret) > 0, 'getSquads no ProDB info for Squads'
+    # assert len(ret) > 0, 'getSquads - no ProDB info for Squads'
     return ret
 
 
 @functools.lru_cache()
 def getMatches(*squads_keys):
+    assert len(squads_keys) > 0, 'getMatche - no squads_keys passed'
     squads_keys = ','.join(squads_keys)
     url = 'https://prodb.tet.io/api/matches?' \
           'status=open,live&sort=startTime&squads={}'.format(squads_keys)
     Logger.debug('Query GET {}'.format(url))
     headers = {'X-Auth-Token': getAuthToken(), 'Accept': 'application/json'}
     resp = requests.get(url, headers=headers)
-    assert resp.status_code == 200, 'getMatches bad status: {}'.format(resp.status_code)
+    assert resp.status_code == 200, 'getMatches - bad status: {}'.format(resp.status_code)
     ret = resp.json()
-    assert len(ret) > 0, 'getMatches no ProDB info for Matches'
+    # assert len(ret) > 0, 'getMatches - no ProDB info for Matches'
     return ret
 
 
@@ -66,9 +68,9 @@ def getRoundsInfo(match_key):
     Logger.debug('Query GET {}'.format(url))
     headers = {'X-Auth-Token': getAuthToken(), 'Accept': 'application/json'}
     resp = requests.get(url, headers=headers)
-    assert resp.status_code == 200, 'getRoundsInfo bad status: {}'.format(resp.status_code)
+    assert resp.status_code == 200, 'getRoundsInfo - bad status: {}'.format(resp.status_code)
     ret = resp.json().get('rounds')
-    assert len(ret) > 0, 'getMatches no ProDB info for RoundsInfo'
+    # assert len(ret) > 0, 'getMatches - no ProDB info for RoundsInfo'
     return ret
 
 
@@ -77,7 +79,7 @@ def getStats(round_match_key):
     Logger.debug('Query GET {}'.format(url))
     headers = {'X-Auth-Token': getAuthToken(), 'Accept': 'application/json'}
     resp = requests.get(url, headers=headers)
-    assert resp.status_code == 200, 'getStats bad status: {}'.format(resp.status_code)
+    assert resp.status_code == 200, 'getStats - bad status: {}'.format(resp.status_code)
     return resp.json()
 
 
@@ -104,7 +106,7 @@ def postStats(key, post_data, is_patch):
                 Logger.debug('Query POST {}'.format(url))
                 resp = requests.post(url, data=post_data, headers=headers)
 
-            assert resp.status_code == 201, 'postStats bad status: {}'.format(resp.status_code)
+            assert resp.status_code == 201, 'postStats - bad status: {}'.format(resp.status_code)
 
     except Exception as ex:
         Logger.exception('Exception: {}'.format(repr(ex.args[0])))
