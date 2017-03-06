@@ -33,7 +33,7 @@ class ProxyPlayer:
 
     @property
     def vendorId(self):
-        return int(self.cid)
+        return str(self.cid)
 
     @property
     def name(self):
