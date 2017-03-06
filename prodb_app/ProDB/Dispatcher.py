@@ -70,8 +70,7 @@ class Dispatcher(object):
 
             for aid, battle in list(self._pool.items()):
                 if battle.is_post_updated:
-                    post_data = battle.get_post()
-                    msg = aid, post_data
+                    msg = battle.get_post()
                     self._outputq.put(msg)
 
                 if battle.is_finished:

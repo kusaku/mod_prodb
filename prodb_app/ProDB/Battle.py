@@ -1,8 +1,11 @@
 import asyncio
 import copy
+import json
 import queue
 import threading
 import time
+
+import jsonpatch
 
 from . import BATTLE_FINISH_TIMEOUT, BATTLE_POST_TIMEOUT
 from .Logger import Logger
@@ -44,9 +47,11 @@ class Battle(object):
 
     @property
     def is_post_updated(self):
-        result = self._post_is_updated
-        self._post_is_updated = False
-        return result
+        return self._post_is_updated
+
+    @property
+    def is_post_firsttime(self):
+        return len(self._post_old) == 0
 
     def external_data_updated(self):
         self._post_needs_update = True
@@ -62,13 +67,25 @@ class Battle(object):
         self._counter = 0
         self._data = dict(period=dict(), stats=dict(), players=dict())
         self._post = dict()
+        self._post_old = dict()
+        self._post_key = str()
         self._post_needs_update = False
         self._post_is_updated = False
 
     def get_post(self):
         # Logger.warn('get_post')
+        # deliver post data, clear updated status
         with self._lock:
-            return copy.deepcopy(self._post)
+            if self.is_post_firsttime:
+                # return full post
+                post = self._post_key, json.dumps(self._post), False
+            else:
+                # return json patch post - changes only
+                post = self._post_key, jsonpatch.make_patch(self._post_old, self._post).to_string(), True
+
+            self._post_old = copy.deepcopy(self._post)
+            self._post_is_updated = False
+            return post
 
     def start(self):
         self._stop_event.clear()
@@ -124,20 +141,49 @@ class Battle(object):
             stats = self._data.get('stats').setdefault(str(msg.cid), {})
             stats.update(msg.data.get('stats_data', {}))
 
+        # Mock cids
+        #
+        # [542794177, 542794178, 542794179, 542794180, 542794181, 542793197, 542794182, 542794184, 542794185, 542794186, 542794188, 542794189, 542794190, 542794165]
+        # Mock data
+        #
         # self._data.update(
         #     {
+        #         # 'attackingTeam': 1,
+        #         # 'gameplayName': 'assault',
+        #
         #         'stats': {
-        #             '1': dict(),
-        #             '2': dict(),
-        #             '3': dict(),
-        #             '4': dict(),
+        #             '542794177': self._data['stats'].get('32377107', dict()),
+        #             '542794178': dict(),
+        #             '542794179': dict(),
+        #             '542794180': dict(),
+        #             '542794181': dict(),
+        #             '542793197': dict(),
+        #             '542794182': dict(),
+        #             '542794184': dict(),
+        #             '542794185': dict(),
+        #             '542794186': dict(),
+        #             '542794188': dict(),
+        #             '542794189': dict(),
+        #             '542794190': dict(),
+        #             '542794165': dict(),
+        #
         #         },
         #
         #         'players': {
-        #             '1': {'team': 1, 'name': 'player1', 'vehicle_name': 'ssss!'},
-        #             '2': {'team': 1, 'name': 'player2', 'vehicle_name': 'ssss!'},
-        #             '3': {'team': 2, 'name': 'player3', 'vehicle_name': 'ssss!'},
-        #             '4': {'team': 2, 'name': 'player4', 'vehicle_name': 'ssss!'},
+        #             '542794177': self._data['players'].get('32377107', {'team': 1, 'name': 'WoT A1', 'vehicle_name': 'veh_t'}),
+        #             '542794178': {'team': 1, 'name': 'WoT A2', 'vehicle_name': 'veh_t'},
+        #             '542794179': {'team': 1, 'name': 'WoT A3', 'vehicle_name': 'veh_t'},
+        #             '542794180': {'team': 1, 'name': 'WoT A4', 'vehicle_name': 'veh_t'},
+        #             '542794181': {'team': 1, 'name': 'WoT A5', 'vehicle_name': 'veh_t'},
+        #             '542793197': {'team': 1, 'name': 'WoT A6', 'vehicle_name': 'veh_t'},
+        #             '542794182': {'team': 1, 'name': 'WoT A7', 'vehicle_name': 'veh_t'},
+        #             '542794184': {'team': 2, 'name': 'WoT B1', 'vehicle_name': 'veh_t'},
+        #             '542794185': {'team': 2, 'name': 'WoT B2', 'vehicle_name': 'veh_t'},
+        #             '542794186': {'team': 2, 'name': 'WoT B3', 'vehicle_name': 'veh_t'},
+        #             '542794188': {'team': 2, 'name': 'WoT B4', 'vehicle_name': 'veh_t'},
+        #             '542794189': {'team': 2, 'name': 'WoT B5', 'vehicle_name': 'veh_t'},
+        #             '542794190': {'team': 2, 'name': 'WoT B6', 'vehicle_name': 'veh_t'},
+        #             '542794165': {'team': 2, 'name': 'WoT B7', 'vehicle_name': 'veh_t'},
         #         }
         #     }
         # )
@@ -145,7 +191,7 @@ class Battle(object):
         self._post_needs_update = self._post_needs_update or _old_data != self._data
 
         # self._post_needs_update = True
-
+        # self._post_is_updated = True
         # Logger.warn(json.dumps(self._data, indent=4))
         # Logger.warn('Is finished? {!r}'.format(self.is_finished))
         # Logger.warn('Is consistent? {!r}'.format(self.is_consistent))
@@ -181,8 +227,6 @@ class Battle(object):
             return
 
         # Logger.warn('update')
-
-        _old_post = copy.deepcopy(self._post)
 
         proxy_team_1 = ProxyTeam(1, self._data)
         proxy_team_2 = ProxyTeam(2, self._data)
@@ -247,17 +291,18 @@ class Battle(object):
         if len(pending_tasks) > 0:
             for task in done_tasks:
                 if task.exception() is not None:
-                    Logger.Logger.error('Error {} in {}'.format(repr(task.exception().args[0]), task._coro.__name__))
+                    Logger.error('Error {} in {}'.format(repr(task.exception().args[0]), task._coro.__name__))
 
             for task in pending_tasks:
                 task.cancel()
 
             # sleep?
-            Logger.Logger.error('Generate post failed, sleepeng {} seconds'.format(BATTLE_POST_TIMEOUT))
+            Logger.error('Generate post failed, sleepeng {} seconds'.format(BATTLE_POST_TIMEOUT))
             self.loop.run_until_complete(asyncio.sleep(BATTLE_POST_TIMEOUT))
 
         else:
             self._set_result_to(post, done_tasks)
+            self._post_key = post.pop('key')
             self._post = post
             self._post_needs_update = False
-            self._post_is_updated = self._post_is_updated or _old_post != self._post
+            self._post_is_updated = self._post_is_updated or self._post_old != self._post

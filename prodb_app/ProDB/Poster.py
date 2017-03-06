@@ -47,9 +47,9 @@ class Poster(object):
                 msg = self._inputq.get()
                 if msg is None:
                     continue
-                aid, post_data = msg
+                key, post_data, is_patch = msg
                 try:
-                    future = loop.run_in_executor(None, postStats, aid, post_data)
+                    future = loop.run_in_executor(None, postStats, key, post_data, is_patch)
                 except:
                     continue
                 futures.add(future)

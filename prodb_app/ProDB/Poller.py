@@ -1,4 +1,5 @@
 import asyncio
+import itertools
 import random
 
 from .ProDBApi import getMatches, getPlayer, getRoundsInfo, getSquads
@@ -11,6 +12,7 @@ async def getRoundInfosAsync(match_key):
 
 
 async def getRoundKeyByPlayerCIDs(team1_cids, team2_cids):
+    # Logger.debug('getRoundKeyByPlayerCIDs')
     from ProDB.App import App
     if App().config.mockpoll:
         await asyncio.sleep(random.random())
@@ -21,7 +23,7 @@ async def getRoundKeyByPlayerCIDs(team1_cids, team2_cids):
 
     squads_keys = await asyncio.gather(*(getTeamKeyByPlayerCIDs(team1_cids), getTeamKeyByPlayerCIDs(team2_cids)))
 
-    assert all(squads_keys), 'No ProDB info for Squad'
+    assert all(squads_keys), 'No ProDB info for all Squads'
 
     matches_infos = getMatches(*sorted(squads_keys))
     matches_keys = [match_info.get('key') for match_info in matches_infos if
@@ -29,14 +31,15 @@ async def getRoundKeyByPlayerCIDs(team1_cids, team2_cids):
 
     rounds_infos = await asyncio.gather(*[getRoundInfosAsync(match_key) for match_key in matches_keys])
 
-    assert all(rounds_infos), 'No ProDB info for Round'
+    assert all(rounds_infos), 'No ProDB info for all Rounds'
 
     # todo need to detect here most relevant round
-    return next(round_info.get('key') for round_info in rounds_infos if
+    return next(round_info.get('key') for round_info in itertools.chain(*rounds_infos) if
                 round_info.get('roundStatus') in ('live', 'open'))
 
 
 async def getTeamKeyByPlayerCIDs(cids):
+    # Logger.debug('getTeamKeyByPlayerCIDs')
     from ProDB.App import App
     if App().config.mockpoll:
         await asyncio.sleep(random.random())
@@ -54,6 +57,7 @@ async def getTeamKeyByPlayerCIDs(cids):
 
 
 async def getTeamNameByPlayerCIDs(cids):
+    # Logger.debug('getTeamNameByPlayerCIDs')
     from ProDB.App import App
     if App().config.mockpoll:
         await asyncio.sleep(random.random())
@@ -70,13 +74,12 @@ async def getTeamNameByPlayerCIDs(cids):
 
 
 async def getPlayerKeyByPlayerCID(cid):
+    # Logger.debug('getPlayerKeyByPlayerCID')
     from ProDB.App import App
     if App().config.mockpoll:
         await asyncio.sleep(random.random())
         return getPlayerKeyByPlayerCID_mock(cid)
 
     player_info = getPlayer(cid)
-
-    assert len(player_info) > 0, 'No ProDB info for Player id={}'.format(cid)
 
     return next(iter(player_info), {}).get('player', {}).get('key')
