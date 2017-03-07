@@ -2,7 +2,8 @@
 # mod_prodb entry point
 #
 
-from gui.mods.ProDB import g_proDB, Log
+from gui.mods.ProDB import Log, g_proDB
+
 
 def init():
     Log.LOG_DEBUG('init')

@@ -1,8 +1,6 @@
 from gui.app_loader.settings import APP_NAME_SPACE
-from gui.shared import g_eventBus, events
-from . import Config
-from . import Log
-from . import Tracking
+from gui.shared import events, g_eventBus
+from . import Config, Log, Tracking
 
 
 class ProDB(object):

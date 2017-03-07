@@ -4,8 +4,7 @@ from PlayerEvents import g_playerEvents
 from helpers import dependency
 from helpers.CallbackDelayer import CallbackDelayer
 from skeletons.gui.battle_session import IBattleSessionProvider
-from . import Channel
-from . import Log
+from . import Channel, Log
 
 UPDATE_ARENA_INTERVAL = 1.0
 
@@ -19,6 +18,17 @@ class MSG_TYPE:
     UPDATE_DAMAGE = 'update_damage'
     UPDATE_SPOTTED = 'update_spotted'
     UPDATE_BASE_STATE = 'update_base_state'
+
+
+# shared with observer
+class PlayerStats:
+    DAMAGE_DONE = 'DAMAGE_DONE'
+    DAMAGE_BLOCKED = 'DAMAGE_BLOCKED'
+    DAMAGE_ASSIST = 'DAMAGE_ASSIST'
+    SPOTTED_COUNT = 'SPOTTED_COUNT'
+    SHOTS_COUNT = 'SHOTS_COUNT'
+    HITS_COUNT = 'HITS_COUNT'
+    KILLS_COUNT = 'KILLS_COUNT'
 
 
 class Tracking(CallbackDelayer):
@@ -84,12 +94,14 @@ class Tracking(CallbackDelayer):
         self.channel.init(self.config)
         g_playerEvents.onAvatarReady += self._onAvatarReady
         g_playerEvents.onArenaPeriodChange += self._onArenaPeriodChange
+        g_playerEvents.onBattleResultsReceived += self._onBattleResultsReceived
         self.delayCallback(UPDATE_ARENA_INTERVAL, self.sendArena)
 
     def stop(self):
         self.clearCallbacks()
         g_playerEvents.onAvatarReady -= self._onAvatarReady
         g_playerEvents.onArenaPeriodChange -= self._onArenaPeriodChange
+        g_playerEvents.onBattleResultsReceived -= self._onBattleResultsReceived
         self.channel.fini()
 
     def send(self, type, data):
@@ -107,8 +119,29 @@ class Tracking(CallbackDelayer):
         self.send(MSG_TYPE.UPDATE_ARENA, self.arenadata)
         return UPDATE_ARENA_INTERVAL
 
+    def sendArenaResults(self, battleResults):
+        vs = battleResults.get('vehicles', dict())
+        arenadata = self.arenadata
+        stats = arenadata['stats'] = dict()
+        for vid, vehicle in self.arena.vehicles.iteritems():
+            ps = next(iter(vs.get(vid, list())), dict())
+            cid = ps.get('accountDBID', 0)
+            stats[cid] = dict()
+            stats[cid][PlayerStats.DAMAGE_DONE] = ps.get('damageDealt', 0) + ps.get('sniperDamageDealt', 0)
+            stats[cid][PlayerStats.DAMAGE_BLOCKED] = ps.get('damageBlockedByArmor', 0)
+            stats[cid][PlayerStats.DAMAGE_ASSIST] = ps.get('damageAssistedRadio', 0) + ps.get('damageAssistedRadio', 0)
+            stats[cid][PlayerStats.SPOTTED_COUNT] = ps.get('spotted', 0)
+            stats[cid][PlayerStats.SHOTS_COUNT] = ps.get('shots', 0)
+            stats[cid][PlayerStats.HITS_COUNT] = ps.get('directHits', 0) + ps.get('piercings', 0)
+            stats[cid][PlayerStats.KILLS_COUNT] = ps.get('kills', 0)
+        self.send(MSG_TYPE.UPDATE_ARENA, arenadata)
+
     def _onAvatarReady(self):
         self.sendArena()
 
     def _onArenaPeriodChange(self, period, periodEndTime, periodLength, periodAdditionalInfo):
         self.sendArena()
+
+    def _onBattleResultsReceived(self, isActiveVehicle, battleResults):
+        self.clearCallbacks()
+        self.sendArenaResults(battleResults)
