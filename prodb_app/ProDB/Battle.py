@@ -37,8 +37,7 @@ class Battle(object):
 
     @property
     def is_finished(self):
-        return self._data.get('period').get('period') == ARENA_PERIOD.AFTERBATTLE or \
-               time.time() - self._last_atime > BATTLE_FINISH_TIMEOUT
+        return time.time() - self._last_atime > BATTLE_FINISH_TIMEOUT and not self._post_is_updated
 
     @property
     def is_consistent(self):
@@ -134,12 +133,16 @@ class Battle(object):
 
         _old_data = copy.deepcopy(self._data)
 
+        # update arena (can update player stats when battleresults received)
         if msg.type == MSG_TYPE.UPDATE_ARENA:
             self._data.update(msg.data)
 
-        if msg.type in (MSG_TYPE.UPDATE_STATS, MSG_TYPE.UPDATE_BASE_STATE):
-            stats = self._data.get('stats').setdefault(str(msg.cid), {})
-            stats.update(msg.data.get('stats_data', {}))
+        # do not receive players data after battle is over
+        if self._data.get('period').get('period') == ARENA_PERIOD.AFTERBATTLE:
+            # update player stats
+            if msg.type in (MSG_TYPE.UPDATE_STATS, MSG_TYPE.UPDATE_BASE_STATE):
+                stats = self._data.get('stats').setdefault(str(msg.cid), {})
+                stats.update(msg.data.get('stats_data', {}))
 
         # Mock cids
         #
@@ -268,6 +271,7 @@ class Battle(object):
                     'spotted': proxy_player.spotted,
                     'damageDealt': proxy_player.damageDealt,
                     'damageBlocked': proxy_player.damageBlocked,
+                    'damageAssisted': proxy_player.damageAssisted,
                 }
             })
 
@@ -291,18 +295,26 @@ class Battle(object):
         if len(pending_tasks) > 0:
             for task in done_tasks:
                 if task.exception() is not None:
-                    Logger.error('Error {} in {}'.format(repr(task.exception().args[0]), task._coro.__name__))
+                    ex = task.exception()
+                    Logger.error("Error '{}' in {}".format(next(iter(ex.args), type(ex).__name__), task._coro.__name__))
 
             for task in pending_tasks:
                 task.cancel()
 
-            # sleep?
-            Logger.error('Generate post failed, sleepeng {} seconds'.format(BATTLE_POST_TIMEOUT))
-            self.loop.run_until_complete(asyncio.sleep(BATTLE_POST_TIMEOUT))
+            Logger.error('Generate post failed')
+            self._post_needs_update = False
 
         else:
-            self._set_result_to(post, done_tasks)
-            self._post_key = post.pop('key')
-            self._post = post
-            self._post_needs_update = False
-            self._post_is_updated = self._post_is_updated or self._post_old != self._post
+            try:
+                self._set_result_to(post, done_tasks)
+            except Exception as ex:
+                Logger.error("Error '{}'".format(next(iter(ex.args), type(ex).__name__)))
+                Logger.error('Generate post failed')
+                self._post_needs_update = False
+            else:
+                self._post_key = post.pop('key')
+                self._post = post
+                self._post_needs_update = False
+                self._post_is_updated = self._post_is_updated or self._post_old != self._post
+
+        # Logger.error(repr(self._post_is_updated))

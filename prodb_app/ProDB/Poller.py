@@ -18,23 +18,24 @@ async def getRoundKeyByPlayerCIDs(team1_cids, team2_cids):
         await asyncio.sleep(random.random())
         return getRoundKeyByPlayerCIDs_mock(*sorted(team1_cids + team2_cids))
 
-    assert all(team1_cids), 'getRoundKeyByPlayerCIDs - no players in team 1'
-    assert all(team2_cids), 'getRoundKeyByPlayerCIDs - no players in team 2'
+    assert len(team1_cids) > 0, 'getRoundKeyByPlayerCIDs - no players in team 1'
+    assert len(team2_cids) > 0, 'getRoundKeyByPlayerCIDs - no players in team 2'
 
     squads_keys = await asyncio.gather(*(getTeamKeyByPlayerCIDs(team1_cids), getTeamKeyByPlayerCIDs(team2_cids)))
 
-    assert all(squads_keys), 'getRoundKeyByPlayerCIDs - no ProDB info for all Squads'
+    assert len(squads_keys) > 0, 'getRoundKeyByPlayerCIDs - no ProDB info for Squads'
 
     matches_infos = getMatches(*sorted(squads_keys))
     matches_keys = [match_info.get('key') for match_info in matches_infos if
                     match_info.get('matchStatus') in ('live', 'open')]
 
     rounds_infos = await asyncio.gather(*[getRoundInfosAsync(match_key) for match_key in matches_keys])
+    rounds_infos = [round_info for rounds_info in rounds_infos for round_info in rounds_info]
 
-    assert all(rounds_infos), 'getRoundKeyByPlayerCIDs - no ProDB info for all Rounds'
+    assert len(rounds_infos) > 0, 'getRoundKeyByPlayerCIDs - no ProDB info for Rounds'
 
     # todo need to detect here most relevant round
-    return next(round_info.get('key') for round_info in itertools.chain(*rounds_infos) if
+    return next(round_info.get('key') for round_info in rounds_infos if
                 round_info.get('roundStatus') in ('live', 'open'))
 
 

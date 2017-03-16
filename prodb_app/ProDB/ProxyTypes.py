@@ -69,6 +69,10 @@ class ProxyPlayer:
     def damageBlocked(self):
         return self.data.get('stats', {}).get(self.cid, {}).get('DAMAGE_BLOCKED', 0)
 
+    @property
+    def damageAssisted(self):
+        return self.data.get('stats', {}).get(self.cid, {}).get('DAMAGE_ASSIST', 0)
+
     def __init__(self, cid, data):
         self.cid = cid  # type(cid) is str!!!
         self.data = data
