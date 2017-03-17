@@ -137,8 +137,8 @@ class Battle(object):
         if msg.type == MSG_TYPE.UPDATE_ARENA:
             self._data.update(msg.data)
 
-        # do not receive players data after battle is over
-        if self._data.get('period').get('period') == ARENA_PERIOD.AFTERBATTLE:
+        # receive players data only in battle
+        if self._data.get('period').get('period') == ARENA_PERIOD.BATTLE:
             # update player stats
             if msg.type in (MSG_TYPE.UPDATE_STATS, MSG_TYPE.UPDATE_BASE_STATE):
                 stats = self._data.get('stats').setdefault(str(msg.cid), {})
