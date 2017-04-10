@@ -41,7 +41,7 @@ class Battle(object):
 
     @property
     def is_consistent(self):
-        return self._data.get('stats') and self._data.get('players') and \
+        return len(self._data.get('stats')) > 0 and len(self._data.get('players')) > 0 and \
                set(self._data.get('stats').keys()) == set(self._data.get('players').keys())
 
     @property
@@ -301,7 +301,7 @@ class Battle(object):
             for task in pending_tasks:
                 task.cancel()
 
-            Logger.error('Generate post failed')
+            Logger.error('Generate post failed - timeout querying all data')
             self._post_needs_update = False
 
         else:
