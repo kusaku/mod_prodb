@@ -1,6 +1,6 @@
 CACHE_CLEAR_TIMEOUT = 60.0  # seconds
 BATTLE_FINISH_TIMEOUT = 20.0  # seconds
-BATTLE_POST_TIMEOUT = 10.0  # seconds
+BATTLE_POLL_TIMEOUT = 10.0  # seconds
 MAX_POSTER_WORKERS = 4
 
 PRO_DB_USER = 'wot-stats'

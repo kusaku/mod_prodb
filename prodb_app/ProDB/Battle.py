@@ -7,7 +7,7 @@ import time
 
 import jsonpatch
 
-from . import BATTLE_FINISH_TIMEOUT, BATTLE_POST_TIMEOUT
+from . import BATTLE_FINISH_TIMEOUT, BATTLE_POLL_TIMEOUT
 from .Logger import Logger
 from .ProxyTypes import ProxyPlayer, ProxyRound, ProxyTeam
 
@@ -289,19 +289,22 @@ class Battle(object):
 
         new_tasks = [v for v in self._get_tasks_of(post)]
 
-        future = asyncio.wait(new_tasks, timeout=BATTLE_POST_TIMEOUT, return_when=asyncio.FIRST_EXCEPTION)
+        future = asyncio.wait(new_tasks, timeout=BATTLE_POLL_TIMEOUT, return_when=asyncio.FIRST_EXCEPTION)
         done_tasks, pending_tasks = self.loop.run_until_complete(future)
 
         if len(pending_tasks) > 0:
+            is_timeout = True
             for task in done_tasks:
                 if task.exception() is not None:
+                    is_timeout = False
                     ex = task.exception()
                     Logger.error("Error '{}' in {}".format(next(iter(ex.args), type(ex).__name__), task._coro.__name__))
-
             for task in pending_tasks:
                 task.cancel()
-
-            Logger.error('Generate post failed - timeout querying all data')
+            if is_timeout:
+                Logger.error('Generate post failed - timeout querying all data')
+            else:
+                Logger.error('Generate post failed')
             self._post_needs_update = False
 
         else:
