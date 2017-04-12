@@ -3,7 +3,6 @@ import os
 
 import requests
 
-from . import PRO_DB_SECRET, PRO_DB_USER
 from .Logger import Logger
 
 
@@ -11,7 +10,8 @@ from .Logger import Logger
 def getAuthToken():
     url = 'https://prodb.tet.io/api/login'
     Logger.debug('Query GET {}'.format(url))
-    data = {'name': PRO_DB_USER, 'secret': PRO_DB_SECRET}
+    from ProDB.App import App
+    data = {'name': App().config.pro_db_user, 'secret': App().config.pro_db_secret}
     headers = {'Content-type': 'application/json', 'Accept': 'application/json'}
     resp = requests.post(url, json=data, headers=headers)
     assert resp.text == '"OK"', 'getAuthToken - bad reply - {}'.format(resp.text)

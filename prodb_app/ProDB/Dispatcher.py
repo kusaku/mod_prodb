@@ -1,7 +1,6 @@
 import threading
 import time
 
-from . import CACHE_CLEAR_TIMEOUT
 from .Battle import Battle
 from .Logger import Logger
 from .ProDBApi import cache_clear_all as api_cache_clear_all
@@ -9,9 +8,22 @@ from .ProDBMock import cache_clear_all as mock_cache_clear_all
 
 
 class Dispatcher(object):
-    def __init__(self, inputq, outputq):
-        self._inputq = inputq
-        self._outputq = outputq
+    @property
+    def config(self):
+        from ProDB.App import App
+        return App().config
+
+    @property
+    def inputq(self):
+        from ProDB.App import App
+        return App().inputq
+
+    @property
+    def outputq(self):
+        from ProDB.App import App
+        return App().outputq
+
+    def __init__(self):
         self._pool = None
         self._stop_event = threading.Event()
         self._thread_in = None
@@ -45,14 +57,14 @@ class Dispatcher(object):
         Logger.debug('Started')
 
         while not self._stop_event.isSet():
-            msg = self._inputq.get()
+            msg = self.inputq.get()
 
             if msg is None:
                 continue
 
             if msg.aid not in self._pool:
                 # Logger.info('Starting Battle {}'.format(str(msg.aid)[-5:]))
-                battle = Battle(msg.aid, self._outputq)
+                battle = Battle(msg.aid)
                 self._pool[msg.aid] = battle
                 battle.start()
             else:
@@ -60,7 +72,7 @@ class Dispatcher(object):
 
             battle.queue.put(msg)
 
-            self._inputq.task_done()
+            self.inputq.task_done()
 
         Logger.debug('Finished')
 
@@ -72,7 +84,7 @@ class Dispatcher(object):
             for aid, battle in list(self._pool.items()):
                 if battle.is_post_updated:
                     msg = battle.get_post()
-                    self._outputq.put(msg)
+                    self.outputq.put(msg)
 
                 if battle.is_finished:
                     # Logger.info('Finishing Battle {}'.format(str(aid)[-5:]))
@@ -87,7 +99,7 @@ class Dispatcher(object):
         last_clear_cache_time = time.time()
 
         while not self._stop_event.wait(1.0):
-            if len(self._pool) > 0 and time.time() - last_clear_cache_time > CACHE_CLEAR_TIMEOUT:
+            if len(self._pool) > 0 and time.time() - last_clear_cache_time > self.config.cache_clear_timeout:
                 api_cache_clear_all()
                 mock_cache_clear_all()
                 last_clear_cache_time = time.time()

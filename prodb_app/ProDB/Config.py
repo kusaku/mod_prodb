@@ -12,6 +12,12 @@ def Config(args):
         'rmq_port': 5672,
         'rmq_exchange': 'wot_observer_exchange',
         'rmq_session_dump': None,
+        'cache_clear_timeout': 60.0,
+        'battle_finish_timeout': 20.0,
+        'battle_poll_timeout': 10.0,
+        'max_poster_workers': 4,
+        'pro_db_user': 'wot-stats',
+        'pro_db_secret': '38o5diufjfqct6gm2chg1hnmncociqf0leg8qq8',
         'mockpoll': bool(args.mockpoll),
         'mockpost': bool(args.mockpost),
     }

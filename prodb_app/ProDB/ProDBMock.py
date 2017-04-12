@@ -1,8 +1,7 @@
 import functools
 import random
-import uuid
-
 import time
+import uuid
 
 from .Logger import Logger
 

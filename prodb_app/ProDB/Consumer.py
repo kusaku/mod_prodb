@@ -11,17 +11,25 @@ from .Logger import Logger
 class Consumer(object):
     msg_packet = namedtuple('msg_packet', 'aid,vid,cid,stime,type,data')
 
-    def __init__(self, config, inputq):
-        self._config = config
-        self._queue = inputq
+    @property
+    def inputq(self):
+        from ProDB.App import App
+        return App().inputq
+
+    @property
+    def config(self):
+        from ProDB.App import App
+        return App().config
+
+    def __init__(self):
         self._stop_event = threading.Event()
         self._thread = None
         self._connection = None
         self._counter = 0
 
     def start(self):
-        if self._config.rmq_session_dump:
-            with open(self._config.rmq_session_dump, 'a') as outfile:
+        if self.config.rmq_session_dump:
+            with open(self.config.rmq_session_dump, 'a') as outfile:
                 outfile.write(datetime.now().strftime('# RMQ session started at %Y.%m.%d %H:%M:%S\n'))
 
         self._stop_event.clear()
@@ -30,8 +38,8 @@ class Consumer(object):
         self._thread.start()
 
     def stop(self):
-        if self._config.rmq_session_dump:
-            with open(self._config.rmq_session_dump, 'a') as outfile:
+        if self.config.rmq_session_dump:
+            with open(self.config.rmq_session_dump, 'a') as outfile:
                 outfile.write(datetime.now().strftime('# RQM session stopped at %Y.%m.%d %H:%M:%S\n'))
 
         self._stop_event.set()
@@ -43,26 +51,26 @@ class Consumer(object):
         while not self._stop_event.isSet():
             try:
                 Logger.debug('Connecting to {}:{}@{}:{}/{}'.format(
-                    self._config.rmq_username,
-                    '*' * len(self._config.rmq_password),
-                    self._config.rmq_ip,
-                    self._config.rmq_port,
-                    self._config.rmq_exchange
+                    self.config.rmq_username,
+                    '*' * len(self.config.rmq_password),
+                    self.config.rmq_ip,
+                    self.config.rmq_port,
+                    self.config.rmq_exchange
                 ))
 
-                credentials = pika.PlainCredentials(self._config.rmq_username, self._config.rmq_password)
+                credentials = pika.PlainCredentials(self.config.rmq_username, self.config.rmq_password)
 
                 self._connection = pika.BlockingConnection(
-                    pika.ConnectionParameters(host=self._config.rmq_ip, port=self._config.rmq_port,
+                    pika.ConnectionParameters(host=self.config.rmq_ip, port=self.config.rmq_port,
                                               credentials=credentials)
                 )
 
                 channel = self._connection.channel()
-                channel.exchange_declare(exchange=self._config.rmq_exchange, type='fanout')
+                channel.exchange_declare(exchange=self.config.rmq_exchange, type='fanout')
 
                 queue_name = channel.queue_declare(exclusive=True).method.queue
 
-                channel.queue_bind(exchange=self._config.rmq_exchange, queue=queue_name)
+                channel.queue_bind(exchange=self.config.rmq_exchange, queue=queue_name)
                 channel.basic_consume(self.callback, queue=queue_name, no_ack=True)
 
                 Logger.debug('Connected')
@@ -88,13 +96,13 @@ class Consumer(object):
         try:
             msg = self.msg_packet(**json.loads(body.decode('utf-8')))
 
-            if self._config.rmq_session_dump is not None:
-                with open(self._config.rmq_session_dump, 'a') as fh:
+            if self.config.rmq_session_dump is not None:
+                with open(self.config.rmq_session_dump, 'a') as fh:
                     json.dump(msg._asdict(), fh, sort_keys=True)
                     fh.write('\n')
 
             # Logger.exception(json.dumps(msg, indent=4))
-            self._queue.put(msg)
+            self.inputq.put(msg)
         except Exception as ex:
             Logger.exception('Exception: {}'.format(type(ex).__name__))
             pass

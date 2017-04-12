@@ -8,9 +8,17 @@ from .ProDBApi import postStats
 
 
 class Poster(object):
-    def __init__(self, config, outputq):
-        self.config = config
-        self._inputq = outputq
+    @property
+    def config(self):
+        from ProDB.App import App
+        return App().config
+
+    @property
+    def outputq(self):
+        from ProDB.App import App
+        return App().outputq
+
+    def __init__(self):
         self._stop_event = threading.Event()
         self._thread = None
         self._futures = set()
@@ -44,7 +52,7 @@ class Poster(object):
         while not self._stop_event.isSet():
             futures = set()
             while not self._stop_event.isSet() and len(futures) < MAX_POSTER_WORKERS:
-                msg = self._inputq.get()
+                msg = self.outputq.get()
                 if msg is None:
                     continue
                 key, post_data, is_patch = msg
@@ -53,7 +61,7 @@ class Poster(object):
                 except:
                     continue
                 futures.add(future)
-                self._inputq.task_done()
+                self.outputq.task_done()
             gathered_future = asyncio.gather(*futures, return_exceptions=True)
             if not self._stop_event.isSet():
                 # Logger.warn(await gathered_future)

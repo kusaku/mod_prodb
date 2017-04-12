@@ -28,7 +28,14 @@ class App(metaclass=Singleton):
     config = property(lambda self: self._config)
 
     _inputq = queue.Queue()
+    inputq = property(lambda self: self._inputq)
+
     _outputq = queue.Queue()
+    outputq = property(lambda self: self._outputq)
+
+    @property
+    def config(self):
+        return self._config
 
     def __init__(self):
         signal.signal(signal.SIGBREAK, lambda *args: self._restart_event.set())
@@ -40,7 +47,9 @@ class App(metaclass=Singleton):
         parser.add_argument('--mockpoll', dest='mockpoll', action='store_true', help='mock ProDB service poll')
         parser.add_argument('--mockpost', dest='mockpost', action='store_true', help='mock ProDB service post')
         parser.add_argument('--config', dest='config', default='prodb_mod_server.cfg', help='configuration file')
+
         self._args = parser.parse_args()
+        self._config = Config(self._args)
 
         if self._args.filelog:
             FileLogger.enable()
@@ -63,23 +72,22 @@ class App(metaclass=Singleton):
         Logger.info('Normal exit')
 
     def start(self):
-        self._config = Config(self._args)
-        self._consumer = Consumer(self._config, self._inputq)
+        self._consumer = Consumer()
         self._consumer.start()
-        self._dispatcher = Dispatcher(self._inputq, self._outputq)
+        self._dispatcher = Dispatcher()
         self._dispatcher.start()
-        self._poster = Poster(self._config, self._outputq)
+        self._poster = Poster()
         self._poster.start()
 
     def stop(self):
         self._consumer.stop()
         self._consumer = None
-        self._inputq.put(None)
-        self._outputq.put(None)
         self._dispatcher.stop()
         self._dispatcher = None
         self._poster.stop()
         self._poster = None
+        self._inputq.put(None)
+        self._outputq.put(None)
 
     def check_restart(self):
         if self._restart_event.isSet():

@@ -7,7 +7,6 @@ import time
 
 import jsonpatch
 
-from . import BATTLE_FINISH_TIMEOUT, BATTLE_POLL_TIMEOUT
 from .Logger import Logger
 from .ProxyTypes import ProxyPlayer, ProxyRound, ProxyTeam
 
@@ -32,12 +31,17 @@ class ARENA_PERIOD:
 
 class Battle(object):
     @property
+    def config(self):
+        from ProDB.App import App
+        return App().config
+
+    @property
     def queue(self):
         return self._inputq
 
     @property
     def is_finished(self):
-        return time.time() - self._last_atime > BATTLE_FINISH_TIMEOUT and not self._post_is_updated
+        return time.time() - self._last_atime > self.config.battle_finish_timeout and not self._post_is_updated
 
     @property
     def is_consistent(self):
@@ -55,10 +59,9 @@ class Battle(object):
     def external_data_updated(self):
         self._post_needs_update = True
 
-    def __init__(self, aid, outputq):
+    def __init__(self, aid):
         self._aid = aid
         self._inputq = queue.Queue()
-        self._outputq = outputq
         self._stop_event = threading.Event()
         self._thread = None
         self._lock = threading.Lock()
@@ -289,7 +292,7 @@ class Battle(object):
 
         new_tasks = [v for v in self._get_tasks_of(post)]
 
-        future = asyncio.wait(new_tasks, timeout=BATTLE_POLL_TIMEOUT, return_when=asyncio.FIRST_EXCEPTION)
+        future = asyncio.wait(new_tasks, timeout=self.config.battle_poll_timeout, return_when=asyncio.FIRST_EXCEPTION)
         done_tasks, pending_tasks = self.loop.run_until_complete(future)
 
         if len(pending_tasks) > 0:
@@ -320,4 +323,4 @@ class Battle(object):
                 self._post_needs_update = False
                 self._post_is_updated = self._post_is_updated or self._post_old != self._post
 
-        # Logger.error(repr(self._post_is_updated))
+                # Logger.error(repr(self._post_is_updated))
