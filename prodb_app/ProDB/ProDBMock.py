@@ -1,11 +1,15 @@
 import functools
+import random
 import uuid
+
+import time
 
 from .Logger import Logger
 
 
 @functools.lru_cache()
 def getRoundKeyByPlayerCIDs_mock(*cids):
+    time.sleep(0.0)
     result = str(uuid.uuid4())
     Logger.debug('[mock] getRoundKeyByPlayerCIDs [ {} ] = {}'.format(', '.join(cids), result))
     return result
@@ -13,6 +17,7 @@ def getRoundKeyByPlayerCIDs_mock(*cids):
 
 @functools.lru_cache()
 def getTeamKeyByPlayerCIDs_mock(*cids):
+    time.sleep(random.random())
     result = str(uuid.uuid4())
     Logger.debug('[mock] getTeamKeyByPlayerCIDs [ {} ] = {}'.format(', '.join(cids), result))
     return result
@@ -20,6 +25,7 @@ def getTeamKeyByPlayerCIDs_mock(*cids):
 
 @functools.lru_cache()
 def getTeamNameByPlayerCIDs_mock(*cids):
+    time.sleep(random.random())
     result = str(uuid.uuid4())
     Logger.debug('[mock] getTeamNameByPlayerCIDs [ {} ] = {}'.format(', '.join(cids), result))
     return result
@@ -27,6 +33,7 @@ def getTeamNameByPlayerCIDs_mock(*cids):
 
 @functools.lru_cache()
 def getPlayerKeyByPlayerCID_mock(cid):
+    time.sleep(random.random())
     result = str(uuid.uuid4())
     Logger.debug('[mock] getPlayerKeyByPlayerCID {} = {}'.format(cid, result))
     return result
@@ -37,7 +44,7 @@ def cache_clear_all():
     getTeamKeyByPlayerCIDs_mock.cache_clear()
     getTeamNameByPlayerCIDs_mock.cache_clear()
     getPlayerKeyByPlayerCID_mock.cache_clear()
-    Logger.debug('ProDB data caches are cleared')
+    Logger.debug('Mock data caches are cleared')
 
 
 def cache_info_all():

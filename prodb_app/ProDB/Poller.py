@@ -1,22 +1,17 @@
 import asyncio
-import itertools
-import random
 
 from .ProDBApi import getMatches, getPlayer, getRoundsInfo, getSquads
 from .ProDBMock import getPlayerKeyByPlayerCID_mock, getRoundKeyByPlayerCIDs_mock, getTeamKeyByPlayerCIDs_mock, \
     getTeamNameByPlayerCIDs_mock
 
 
-async def getRoundInfosAsync(match_key):
-    return getRoundsInfo(match_key)
+async def run_in_executor(func, *args):
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, func, *args)
 
 
 async def getRoundKeyByPlayerCIDs(team1_cids, team2_cids):
     # Logger.debug('getRoundKeyByPlayerCIDs')
-    from ProDB.App import App
-    if App().config.mockpoll:
-        await asyncio.sleep(random.random())
-        return getRoundKeyByPlayerCIDs_mock(*sorted(team1_cids + team2_cids))
 
     assert len(team1_cids) > 0, 'getRoundKeyByPlayerCIDs - no players in team 1'
     assert len(team2_cids) > 0, 'getRoundKeyByPlayerCIDs - no players in team 2'
@@ -25,11 +20,15 @@ async def getRoundKeyByPlayerCIDs(team1_cids, team2_cids):
 
     assert len(squads_keys) > 0, 'getRoundKeyByPlayerCIDs - no ProDB info for Squads'
 
-    matches_infos = getMatches(*sorted(squads_keys))
+    from ProDB.App import App
+    if App().config.mockpoll:
+        return await run_in_executor(getRoundKeyByPlayerCIDs_mock, *sorted(team1_cids + team2_cids))
+
+    matches_infos = await run_in_executor(getMatches, *sorted(squads_keys))
     matches_keys = [match_info.get('key') for match_info in matches_infos if
                     match_info.get('matchStatus') in ('live', 'open')]
 
-    rounds_infos = await asyncio.gather(*[getRoundInfosAsync(match_key) for match_key in matches_keys])
+    rounds_infos = await asyncio.gather(*[run_in_executor(getRoundsInfo, match_key) for match_key in matches_keys])
     rounds_infos = [round_info for rounds_info in rounds_infos for round_info in rounds_info]
 
     assert len(rounds_infos) > 0, 'getRoundKeyByPlayerCIDs - no ProDB info for Rounds'
@@ -41,28 +40,23 @@ async def getRoundKeyByPlayerCIDs(team1_cids, team2_cids):
 
 async def getTeamKeyByPlayerCIDs(cids):
     # Logger.debug('getTeamKeyByPlayerCIDs')
-    from ProDB.App import App
-    if App().config.mockpoll:
-        await asyncio.sleep(random.random())
-        return getTeamKeyByPlayerCIDs_mock(*sorted(cids))
-
     assert len(cids) > 0, 'getTeamKeyByPlayerCIDs - no players in team'
 
     player_keys = await asyncio.gather(*[getPlayerKeyByPlayerCID(cid) for cid in cids])
 
     assert all(player_keys), 'getTeamKeyByPlayerCIDs - no ProDB info for all players'
 
-    squads_info = getSquads(*sorted(player_keys))
+    from ProDB.App import App
+    if App().config.mockpoll:
+        return await run_in_executor(getTeamKeyByPlayerCIDs_mock, *sorted(cids))
+
+    squads_info = await run_in_executor(getSquads, *sorted(player_keys))
 
     return next(iter(squads_info), {}).get('key')
 
 
 async def getTeamNameByPlayerCIDs(cids):
     # Logger.debug('getTeamNameByPlayerCIDs')
-    from ProDB.App import App
-    if App().config.mockpoll:
-        await asyncio.sleep(random.random())
-        return getTeamNameByPlayerCIDs_mock(*sorted(cids))
 
     assert len(cids) > 0, 'getTeamNameByPlayerCIDs - no players in team'
 
@@ -70,17 +64,22 @@ async def getTeamNameByPlayerCIDs(cids):
 
     assert all(player_keys), 'getTeamNameByPlayerCIDs - no ProDB info for all players'
 
-    squads_info = getSquads(*sorted(player_keys))
+    from ProDB.App import App
+    if App().config.mockpoll:
+        return await run_in_executor(getTeamNameByPlayerCIDs_mock, *sorted(cids))
+
+    squads_info = await run_in_executor(getSquads, *sorted(player_keys))
+
     return next(iter(squads_info), {}).get('team', {}).get('name')
 
 
 async def getPlayerKeyByPlayerCID(cid):
     # Logger.debug('getPlayerKeyByPlayerCID')
+
     from ProDB.App import App
     if App().config.mockpoll:
-        await asyncio.sleep(random.random())
-        return getPlayerKeyByPlayerCID_mock(cid)
+        return await run_in_executor(getPlayerKeyByPlayerCID_mock, cid)
 
-    player_info = getPlayer(cid)
+    player_info = await run_in_executor(getPlayer, cid)
 
     return next(iter(player_info), {}).get('player', {}).get('key')
