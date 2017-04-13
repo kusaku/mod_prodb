@@ -46,6 +46,7 @@ class App(metaclass=Singleton):
         parser.add_argument('--filelog', dest='filelog', action='store_true', help='enable log to files')
         parser.add_argument('--mockpoll', dest='mockpoll', action='store_true', help='mock ProDB service poll')
         parser.add_argument('--mockpost', dest='mockpost', action='store_true', help='mock ProDB service post')
+        parser.add_argument('--mockrmq', dest='mockrmq', default=None, help='mock RabbitMQ input file')
         parser.add_argument('--config', dest='config', default='prodb_mod_server.cfg', help='configuration file')
 
         self._args = parser.parse_args()

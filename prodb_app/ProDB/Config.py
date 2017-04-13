@@ -20,6 +20,7 @@ def Config(args):
         'pro_db_secret': '38o5diufjfqct6gm2chg1hnmncociqf0leg8qq8',
         'mockpoll': bool(args.mockpoll),
         'mockpost': bool(args.mockpost),
+        'mockrmq': args.mockrmq,
     }
 
     config_keys = config.keys()
@@ -27,8 +28,8 @@ def Config(args):
     filepath = str(args.config)
 
     try:
-        with open(filepath, 'rt') as infile:
-            loaded_config = json.load(infile)
+        with open(filepath, 'rt') as fh:
+            loaded_config = json.load(fh)
             config = {key: loaded_config.get(key, config[key]) for key in config_keys}
     except Exception as ex:
         Logger.error('Config file \'{}\' not loaded: {}, using defaults'.format(filepath, ex))
