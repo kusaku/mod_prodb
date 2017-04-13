@@ -49,7 +49,6 @@ class App(metaclass=Singleton):
         parser.add_argument('--config', dest='config', default='prodb_mod_server.cfg', help='configuration file')
 
         self._args = parser.parse_args()
-        self._config = Config(self._args)
 
         if self._args.filelog:
             FileLogger.enable()
@@ -60,6 +59,8 @@ class App(metaclass=Singleton):
             Logger.setLevel(logging.INFO)
             # suppress traces
             Logger.exception = Logger.error
+
+        self._config = Config(self._args)
 
     def mainloop(self):
         Logger.info('Command line is {}'.format(' '.join(sys.argv)))
