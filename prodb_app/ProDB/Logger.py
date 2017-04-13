@@ -7,7 +7,7 @@ import colorlog
 
 stream_handler = logging.StreamHandler(stream=sys.stderr)
 stream_handler.setFormatter(colorlog.ColoredFormatter(
-    '%(log_color)s%(asctime)s %(process)5s %(thread)-5d %(threadName)-12s %(message_log_color)s%(message)s',
+    '%(log_color)s%(asctime)s %(thread)-5d %(threadName)-12s %(message_log_color)s%(message)s',
     datefmt='%H:%M:%S',
     reset=True,
     log_colors={
