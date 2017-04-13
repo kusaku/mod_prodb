@@ -99,7 +99,7 @@ class Dispatcher(object):
         last_clear_cache_time = time.time()
 
         while not self._stop_event.wait(1.0):
-            if len(self._pool) > 0 and time.time() - last_clear_cache_time > self.config.cache_clear_timeout:
+            if time.time() - last_clear_cache_time > self.config.cache_clear_timeout:
                 api_cache_clear_all()
                 mock_cache_clear_all()
                 last_clear_cache_time = time.time()
