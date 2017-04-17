@@ -21,8 +21,7 @@ def getAuthToken():
 
 @functools.lru_cache()
 def getPlayer(cid):
-    url = 'https://prodb.tet.io/api/player-gameaccounts?' \
-          'gamePlatform=a5480e62-61e4-4091-83ca-2ab364f1d645&account={}'.format(cid)
+    url = 'https://prodb.tet.io/api/player-gameaccounts?gamePlatform=a5480e62-61e4-4091-83ca-2ab364f1d645&account={}'.format(cid)
     Logger.debug('Query GET {}'.format(url))
     headers = {'X-Auth-Token': getAuthToken(), 'Accept': 'application/json'}
     resp = requests.get(url, headers=headers)
@@ -35,8 +34,7 @@ def getPlayer(cid):
 def getSquads(*players_keys):
     assert len(players_keys) > 0, 'getSquads - no cids passed'
     players_keys = ','.join(players_keys)
-    url = 'https://prodb.tet.io/api/team-squads?' \
-          'gamePlatform=a5480e62-61e4-4091-83ca-2ab364f1d645&players={}'.format(players_keys)
+    url = 'https://prodb.tet.io/api/team-squads?gamePlatform=a5480e62-61e4-4091-83ca-2ab364f1d645&players={}'.format(players_keys)
     Logger.debug('Query GET {}'.format(url))
     headers = {'X-Auth-Token': getAuthToken(), 'Accept': 'application/json'}
     resp = requests.get(url, headers=headers)
@@ -49,8 +47,7 @@ def getSquads(*players_keys):
 def getMatches(*squads_keys):
     assert len(squads_keys) > 0, 'getMatche - no squads_keys passed'
     squads_keys = ','.join(squads_keys)
-    url = 'https://prodb.tet.io/api/matches?' \
-          'status=open,live&sort=startTime&squads={}'.format(squads_keys)
+    url = 'https://prodb.tet.io/api/matches?status=open,live&sort=-startTime&squads,verticalPosition&squads={}'.format(squads_keys)
     Logger.debug('Query GET {}'.format(url))
     headers = {'X-Auth-Token': getAuthToken(), 'Accept': 'application/json'}
     resp = requests.get(url, headers=headers)

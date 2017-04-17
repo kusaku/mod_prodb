@@ -27,34 +27,37 @@ getRoundKeyByPlayerCIDs_cache = dict()
 
 
 async def getRoundKeyByPlayerCIDs(team1_cids, team2_cids):
-    assert len(team1_cids) > 0, 'getRoundKeyByPlayerCIDs - no players in team 1'
-    assert len(team2_cids) > 0, 'getRoundKeyByPlayerCIDs - no players in team 2'
+    assert len(team1_cids) > 0, 'No Players in Team 1'
+    assert len(team2_cids) > 0, 'No Players in Team 2'
 
     cache_key = (tuple(sorted(team1_cids)), tuple(sorted(team2_cids)))
     with thread_lock:
         if cache_key in getRoundKeyByPlayerCIDs_cache:
             return getRoundKeyByPlayerCIDs_cache[cache_key]
 
-    squads_keys = await asyncio.gather(*(getTeamKeyByPlayerCIDs(team1_cids), getTeamKeyByPlayerCIDs(team2_cids)))
+    squads_keys = await asyncio.gather(getSquadKeyByPlayerCIDs(team1_cids), getSquadKeyByPlayerCIDs(team2_cids))
 
-    assert len(squads_keys) > 0, 'getRoundKeyByPlayerCIDs - no ProDB info for Squads'
+    assert all(squads_keys), 'No ProDB info for Squads [{}] vs [{}]'.format(','.join(team1_cids), ','.join(team1_cids))
 
     from .App import App
     if App().config.mockpoll:
         key = await run_in_executor(getRoundKeyByPlayerCIDs_mock, *sorted(team1_cids + team2_cids))
     else:
-        matches_infos = await run_in_executor(getMatches, *sorted(squads_keys))
-        matches_keys = [m_i.get('key') for m_i in matches_infos if m_i.get('matchStatus') in ('live', 'open')]
+        matches_keys = [m_i.get('key') for m_i in await run_in_executor(getMatches, *sorted(squads_keys))]
 
-        assert len(matches_infos) > 0, 'getRoundKeyByPlayerCIDs - no ProDB info for Matches'
+        assert len(matches_keys) > 0, 'No ProDB info for open Matches [{}] vs [{}]'.format(','.join(team1_cids), ','.join(team1_cids))
 
-        rounds_infos = await asyncio.gather(*[run_in_executor(getRoundsInfo, m_k) for m_k in matches_keys])
-        rounds_infos = [r_i for rs_i in rounds_infos for r_i in rs_i]
+        rounds_tasks = [run_in_executor(getRoundsInfo, m_k) for m_k in matches_keys]
+        rounds_infos = [r_i for rs_i in await asyncio.gather(*rounds_tasks) for r_i in rs_i]
 
-        assert len(rounds_infos) > 0, 'getRoundKeyByPlayerCIDs - no ProDB info for Rounds'
+        assert len(rounds_infos) > 0, 'No ProDB info for open Rounds [{}] vs [{}]'.format(','.join(team1_cids), ','.join(team1_cids))
+
+        rounds_infos = sorted(rounds_infos, key=lambda x: x.get('roundNumber'))
 
         # todo need to detect here most relevant round
-        key = next(r_i.get('key') for r_i in rounds_infos if r_i.get('roundStatus') in ('live', 'open'))
+        key = next((r_i.get('key') for r_i in rounds_infos if r_i.get('roundStatus') in ('live', 'open')), None)
+
+        assert key is not None, 'No ProDB info for open Rounds [{}] vs [{}]'.format(','.join(team1_cids), ','.join(team1_cids))
 
     with thread_lock:
         if key is not None:
@@ -63,82 +66,70 @@ async def getRoundKeyByPlayerCIDs(team1_cids, team2_cids):
     return key
 
 
-def getTeamKeyByPlayerCIDs_mock(*cids):
-    time.sleep(random.random())
-    result = str(uuid.uuid4())
-    Logger.debug('[mock] getTeamKeyByPlayerCIDs [{}] = {}'.format(','.join(cids), result))
-    return result
+getSquadInfoByPlayerCIDs_cache = dict()
 
 
-getTeamKeyByPlayerCIDs_cache = dict()
-
-
-async def getTeamKeyByPlayerCIDs(cids):
-    assert len(cids) > 0, 'getTeamKeyByPlayerCIDs - no players in team'
+async def getSquadInfoByPlayerCIDs(cids):
+    assert len(cids) > 0, 'No Players in Team'
 
     cache_key = tuple(sorted(cids))
     with thread_lock:
-        if cache_key in getTeamKeyByPlayerCIDs_cache:
-            return getTeamKeyByPlayerCIDs_cache[cache_key]
+        if cache_key in getSquadInfoByPlayerCIDs_cache:
+            return getSquadInfoByPlayerCIDs_cache[cache_key]
 
     player_keys = await asyncio.gather(*[getPlayerKeyByPlayerCID(cid) for cid in cids])
 
-    assert all(player_keys), 'getTeamKeyByPlayerCIDs - no ProDB info for all players'
+    assert all(player_keys), 'No ProDB info for every Player [{}]'.format(','.join(cids))
 
-    from .App import App
-    if App().config.mockpoll:
-        key = await run_in_executor(getTeamKeyByPlayerCIDs_mock, *sorted(cids))
-    else:
-        squads_info = await run_in_executor(getSquads, *sorted(player_keys))
-        key = next(iter(squads_info), {}).get('key')
+    squads_info = await run_in_executor(getSquads, *sorted(player_keys))
+    squads_info = [s_i for s_i in squads_info if s_i.get('activityStatus') is True]
+
+    assert len(squads_info) > 0, 'No ProDB info for Squad [{}]'.format(','.join(cids))
 
     with thread_lock:
-        if key is not None:
-            getTeamKeyByPlayerCIDs_cache[cache_key] = key
-            # clear round info cache
-            for other_cache_key in set(getRoundKeyByPlayerCIDs_cache.keys()):
-                if cache_key in other_cache_key:
-                    del getRoundKeyByPlayerCIDs_cache[other_cache_key]
+        getSquadInfoByPlayerCIDs_cache[cache_key] = squads_info
+        # clear round info cache
+        for other_cache_key in set(getRoundKeyByPlayerCIDs_cache.keys()):
+            if cache_key in other_cache_key:
+                del getRoundKeyByPlayerCIDs_cache[other_cache_key]
+
+    return squads_info
+
+
+def getSquadKeyByPlayerCIDs_mock(*cids):
+    time.sleep(random.random())
+    result = str(uuid.uuid4())
+    Logger.debug('[mock] getSquadKeyByPlayerCIDs [{}] = {}'.format(','.join(cids), result))
+    return result
+
+
+async def getSquadKeyByPlayerCIDs(cids):
+    from .App import App
+    if App().config.mockpoll:
+        key = await run_in_executor(getSquadKeyByPlayerCIDs_mock, *sorted(cids))
+    else:
+        key = next(iter(await getSquadInfoByPlayerCIDs(cids)), {}).get('key')
+
+        assert key is not None, 'No ProDB info for Squad [{}]'.format(','.join(cids))
 
     return key
 
 
-def getTeamNameByPlayerCIDs_mock(*cids):
+def getSquadNameByPlayerCIDs_mock(*cids):
     time.sleep(random.random())
     result = str(uuid.uuid4())
-    Logger.debug('[mock] getTeamNameByPlayerCIDs [{}] = {}'.format(','.join(cids), result))
+    Logger.debug('[mock] getSquadNameByPlayerCIDs [{}] = {}'.format(','.join(cids), result))
     return result
 
 
-getTeamNameByPlayerCIDs_cache = dict()
-
-
-async def getTeamNameByPlayerCIDs(cids):
-    assert len(cids) > 0, 'getTeamNameByPlayerCIDs - no players in team'
-
-    cache_key = tuple(sorted(cids))
-    with thread_lock:
-        if cache_key in getTeamNameByPlayerCIDs_cache:
-            return getTeamNameByPlayerCIDs_cache[cache_key]
-
-    player_keys = await asyncio.gather(*[getPlayerKeyByPlayerCID(cid) for cid in cids])
-
-    assert all(player_keys), 'getTeamNameByPlayerCIDs - no ProDB info for all players'
-
+async def getSquadNameByPlayerCIDs(cids):
     from .App import App
     if App().config.mockpoll:
-        name = await run_in_executor(getTeamNameByPlayerCIDs_mock, *sorted(cids))
+        name = await run_in_executor(getSquadNameByPlayerCIDs_mock, *sorted(cids))
     else:
-        squads_info = await run_in_executor(getSquads, *sorted(player_keys))
-        name = next(iter(squads_info), {}).get('team', {}).get('name')
+        name = next(iter(await getSquadInfoByPlayerCIDs(cids)), {}).get('team', {}).get('name')
 
-    with thread_lock:
-        if name is not None:
-            getTeamNameByPlayerCIDs_cache[cache_key] = name
-            # clear round info cache
-            for other_cache_key in set(getRoundKeyByPlayerCIDs_cache.keys()):
-                if cache_key in other_cache_key:
-                    del getRoundKeyByPlayerCIDs_cache[other_cache_key]
+        assert name is not None, 'No ProDB info for Squad [{}]'.format(','.join(cids))
 
     return name
 
@@ -166,16 +157,14 @@ async def getPlayerKeyByPlayerCID(cid):
         player_info = await run_in_executor(getPlayer, cid)
         key = next(iter(player_info), {}).get('player', {}).get('key')
 
+        assert key is not None, 'No ProDB info for Player {}'.format(cid)
+
     with thread_lock:
         if key is not None:
             getPlayerKeyByPlayerCID_cache[cid] = key
-            # clear team key cache
-            for other_cache_key in set(getTeamKeyByPlayerCIDs_cache.keys()):
+            # clear team info cache
+            for other_cache_key in set(getSquadInfoByPlayerCIDs_cache.keys()):
                 if cache_key in other_cache_key:
-                    del getTeamKeyByPlayerCIDs_cache[other_cache_key]
-            # clear team name cache
-            for other_cache_key in set(getTeamNameByPlayerCIDs_cache.keys()):
-                if cache_key in other_cache_key:
-                    del getTeamNameByPlayerCIDs_cache[other_cache_key]
+                    del getSquadInfoByPlayerCIDs_cache[other_cache_key]
 
     return key

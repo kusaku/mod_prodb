@@ -304,9 +304,7 @@ class Battle(object):
             for task in pending_tasks:
                 task.cancel()
             if is_timeout:
-                Logger.error('Generate post failed - timeout querying all data')
-            else:
-                Logger.error('Generate post failed')
+                Logger.error('Timeout {}s querying all data'.format(self.config.battle_poll_timeout))
             self._post_needs_update = False
 
         else:
@@ -314,7 +312,6 @@ class Battle(object):
                 self._set_result_to(post, done_tasks)
             except Exception as ex:
                 Logger.error("Error '{}'".format(next(iter(ex.args), type(ex).__name__)))
-                Logger.error('Generate post failed')
                 self._post_needs_update = False
             else:
                 self._post_key = post.pop('key')
