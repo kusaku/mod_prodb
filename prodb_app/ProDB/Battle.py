@@ -75,7 +75,6 @@ class Battle(object):
         self._post_is_updated = False
 
     def get_post(self):
-        # Logger.warn('get_post')
         # deliver post data, clear updated status
         with self._lock:
             if self.is_post_firsttime:
@@ -231,8 +230,6 @@ class Battle(object):
 
         if not self.is_consistent:
             return
-
-        # Logger.warn('update')
 
         proxy_team_1 = ProxyTeam(1, self._data)
         proxy_team_2 = ProxyTeam(2, self._data)

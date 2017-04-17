@@ -4,7 +4,6 @@ import time
 from .Battle import Battle
 from .Logger import Logger
 from .ProDBApi import cache_clear_all as api_cache_clear_all
-from .ProDBMock import cache_clear_all as mock_cache_clear_all
 
 
 class Dispatcher(object):
@@ -101,7 +100,6 @@ class Dispatcher(object):
         while not self._stop_event.wait(1.0):
             if time.time() - last_clear_cache_time > self.config.cache_clear_timeout:
                 api_cache_clear_all()
-                mock_cache_clear_all()
                 last_clear_cache_time = time.time()
                 for battle in self._pool.values():
                     battle.external_data_updated()

@@ -28,7 +28,6 @@ def getPlayer(cid):
     resp = requests.get(url, headers=headers)
     assert resp.status_code == 200, 'getPlayer - bad status: {}'.format(resp.status_code)
     ret = resp.json()
-    # assert len(ret) > 0, 'getPlayer - no ProDB info for Player id={}'.format(cid)
     return ret
 
 
@@ -43,7 +42,6 @@ def getSquads(*players_keys):
     resp = requests.get(url, headers=headers)
     assert resp.status_code == 200, 'getSquads - bad status: {}'.format(resp.status_code)
     ret = resp.json()
-    # assert len(ret) > 0, 'getSquads - no ProDB info for Squads'
     return ret
 
 
@@ -58,7 +56,6 @@ def getMatches(*squads_keys):
     resp = requests.get(url, headers=headers)
     assert resp.status_code == 200, 'getMatches - bad status: {}'.format(resp.status_code)
     ret = resp.json()
-    # assert len(ret) > 0, 'getMatches - no ProDB info for Matches'
     return ret
 
 
@@ -70,7 +67,6 @@ def getRoundsInfo(match_key):
     resp = requests.get(url, headers=headers)
     assert resp.status_code == 200, 'getRoundsInfo - bad status: {}'.format(resp.status_code)
     ret = resp.json().get('rounds')
-    # assert len(ret) > 0, 'getMatches - no ProDB info for RoundsInfo'
     return ret
 
 
@@ -91,9 +87,9 @@ def postStats(key, post_data, is_patch):
             if not os.path.exists('mockpost'):
                 os.makedirs('mockpost')
             fname = 'mockpost/arena-{}.json'.format(key)
-            with open(fname, 'at') as fp:
+            with open(fname, 'at') as fh:
                 Logger.info('[mock] Post data is written to {}'.format(fname))
-                fp.write('{}\n'.format(post_data))
+                fh.write('{}\n'.format(post_data))
 
         else:
             url = 'https://prodb.tet.io/api/match-rounds/{}/stats'.format(key)

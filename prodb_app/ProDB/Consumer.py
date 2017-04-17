@@ -110,8 +110,8 @@ class Consumer(object):
 
     def start(self):
         if self.config.rmq_session_dump:
-            with open(self.config.rmq_session_dump, 'a') as outfile:
-                outfile.write(datetime.now().strftime('# RMQ session started at %Y.%m.%d %H:%M:%S\n'))
+            with open(self.config.rmq_session_dump, 'a') as fh:
+                fh.write(datetime.now().strftime('# RMQ session started at %Y.%m.%d %H:%M:%S\n'))
 
         self._stop_event.clear()
         self._thread = threading.Thread(target=self.thread, name='Consumer')
@@ -120,8 +120,8 @@ class Consumer(object):
 
     def stop(self):
         if self.config.rmq_session_dump:
-            with open(self.config.rmq_session_dump, 'a') as outfile:
-                outfile.write(datetime.now().strftime('# RQM session stopped at %Y.%m.%d %H:%M:%S\n'))
+            with open(self.config.rmq_session_dump, 'a') as fh:
+                fh.write(datetime.now().strftime('# RQM session stopped at %Y.%m.%d %H:%M:%S\n'))
 
         self._stop_event.set()
         self._thread = None

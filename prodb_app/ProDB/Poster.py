@@ -64,7 +64,6 @@ class Poster(object):
                 self.outputq.task_done()
             gathered_future = asyncio.gather(*futures, return_exceptions=True)
             if not self._stop_event.isSet():
-                # Logger.warn(await gathered_future)
                 await gathered_future
             else:
                 gathered_future.cancel()
