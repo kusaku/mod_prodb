@@ -11,8 +11,9 @@ thread_lock = threading.Lock()
 
 
 async def run_in_executor(func, *args):
+    from .App import App
     loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, func, *args)
+    return await loop.run_in_executor(App().poller_executor, func, *args)
 
 
 def getRoundKeyByPlayerCIDs_mock(*cids):
@@ -38,7 +39,7 @@ async def getRoundKeyByPlayerCIDs(team1_cids, team2_cids):
 
     assert len(squads_keys) > 0, 'getRoundKeyByPlayerCIDs - no ProDB info for Squads'
 
-    from ProDB.App import App
+    from .App import App
     if App().config.mockpoll:
         key = await run_in_executor(getRoundKeyByPlayerCIDs_mock, *sorted(team1_cids + team2_cids))
     else:
@@ -84,7 +85,7 @@ async def getTeamKeyByPlayerCIDs(cids):
 
     assert all(player_keys), 'getTeamKeyByPlayerCIDs - no ProDB info for all players'
 
-    from ProDB.App import App
+    from .App import App
     if App().config.mockpoll:
         key = await run_in_executor(getTeamKeyByPlayerCIDs_mock, *sorted(cids))
     else:
@@ -124,7 +125,7 @@ async def getTeamNameByPlayerCIDs(cids):
 
     assert all(player_keys), 'getTeamNameByPlayerCIDs - no ProDB info for all players'
 
-    from ProDB.App import App
+    from .App import App
     if App().config.mockpoll:
         name = await run_in_executor(getTeamNameByPlayerCIDs_mock, *sorted(cids))
     else:
@@ -158,7 +159,7 @@ async def getPlayerKeyByPlayerCID(cid):
         if cid in getPlayerKeyByPlayerCID_cache:
             return getPlayerKeyByPlayerCID_cache[cid]
 
-    from ProDB.App import App
+    from .App import App
     if App().config.mockpoll:
         key = await run_in_executor(getPlayerKeyByPlayerCID_mock, cid)
     else:

@@ -1,26 +1,25 @@
 import asyncio
 import threading
-from concurrent.futures import ThreadPoolExecutor
 
-from ProDB import MAX_POSTER_WORKERS
-from ProDB.Logger import Logger
+from .Logger import Logger
 from .ProDBApi import postStats
 
 
 class Poster(object):
     @property
     def config(self):
-        from ProDB.App import App
+        from .App import App
         return App().config
 
     @property
     def outputq(self):
-        from ProDB.App import App
+        from .App import App
         return App().outputq
 
     def __init__(self):
         self._stop_event = threading.Event()
         self._thread = None
+        self._loop = None
         self._futures = set()
 
     def start(self):
@@ -36,28 +35,25 @@ class Poster(object):
 
     def thread(self):
         Logger.debug('Started')
-        executor = ThreadPoolExecutor(max_workers=MAX_POSTER_WORKERS)
-        # executor = ProcessPoolExecutor(max_workers=MAX_POSTER_WORKERS)
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.set_default_executor(executor)
+        self._loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self._loop)
         try:
-            loop.run_until_complete(self._poster())
+            self._loop.run_until_complete(self._poster())
         finally:
-            loop.close()
+            self._loop.close()
         Logger.debug('Finished')
 
     async def _poster(self):
-        loop = asyncio.get_event_loop()
+        from .App import App
         while not self._stop_event.isSet():
             futures = set()
-            while not self._stop_event.isSet() and len(futures) < MAX_POSTER_WORKERS:
+            while not self._stop_event.isSet() and len(futures) < self.config.max_poster_workers:
                 msg = self.outputq.get()
                 if msg is None:
                     continue
                 key, post_data, is_patch = msg
                 try:
-                    future = loop.run_in_executor(None, postStats, key, post_data, is_patch)
+                    future = self._loop.run_in_executor(App().poster_executor, postStats, key, post_data, is_patch)
                 except:
                     continue
                 futures.add(future)

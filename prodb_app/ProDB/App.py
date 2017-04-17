@@ -4,6 +4,7 @@ import queue
 import signal
 import sys
 import threading
+from concurrent.futures import ThreadPoolExecutor
 
 from .Config import Config
 from .Consumer import Consumer
@@ -33,9 +34,11 @@ class App(metaclass=Singleton):
     _outputq = queue.Queue()
     outputq = property(lambda self: self._outputq)
 
-    @property
-    def config(self):
-        return self._config
+    _poster_executor = None
+    poster_executor = property(lambda self: self._poster_executor)
+
+    _poller_executor = None
+    poller_executor = property(lambda self: self._poller_executor)
 
     def __init__(self):
         signal.signal(signal.SIGBREAK, lambda *args: self._restart_event.set())
@@ -61,16 +64,23 @@ class App(metaclass=Singleton):
             # suppress traces
             Logger.exception = Logger.error
 
-        self._config = Config(self._args)
-
     def mainloop(self):
         Logger.info('Command line is {}'.format(' '.join(sys.argv)))
         Logger.info('Press Ctrl+C to stop, Ctrl+Break to reload')
+
+        self._config = Config(self._args)
+
+        # create executors
+        # todo: can be used true-threaded or ProcessPoolExecutor
+        self._poster_executor = ThreadPoolExecutor(max_workers=self.config.max_poster_workers)
+        self._poller_executor = ThreadPoolExecutor(max_workers=self.config.max_poller_workers)
+
         self.start()
         while not self._stop_event.wait(0.1):
             self.check_restart()
         self.stop()
         self._restart_event.wait(0.1)  # wait other threads
+
         Logger.info('Normal exit')
 
     def start(self):
@@ -95,5 +105,9 @@ class App(metaclass=Singleton):
         if self._restart_event.isSet():
             Logger.info('Restarting workers')
             self.stop()
+            # with self.inputq.mutex:
+            #     self.inputq.queue.clear()
+            # with self.outputq.mutex:
+            #     self.outputq.queue.clear()
             self.start()
             self._restart_event.clear()

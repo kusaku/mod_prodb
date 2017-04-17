@@ -10,7 +10,7 @@ from .Logger import Logger
 def getAuthToken():
     url = 'https://prodb.tet.io/api/login'
     Logger.debug('Query GET {}'.format(url))
-    from ProDB.App import App
+    from .App import App
     data = {'name': App().config.pro_db_user, 'secret': App().config.pro_db_secret}
     headers = {'Content-type': 'application/json', 'Accept': 'application/json'}
     resp = requests.post(url, json=data, headers=headers)
@@ -81,7 +81,7 @@ def getStats(round_match_key):
 
 def postStats(key, post_data, is_patch):
     try:
-        from ProDB.App import App
+        from .App import App
 
         if App().config.mockpost:
             if not os.path.exists('mockpost'):

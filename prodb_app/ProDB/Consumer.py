@@ -14,12 +14,12 @@ class Consumer(object):
 
     @property
     def inputq(self):
-        from ProDB.App import App
+        from .App import App
         return App().inputq
 
     @property
     def config(self):
-        from ProDB.App import App
+        from .App import App
         return App().config
 
     def __init__(self):
@@ -89,6 +89,8 @@ class Consumer(object):
     def mock(self):
         with open(self.config.mockrmq, 'rt') as fh:
             for line in fh:
+                if self._stop_event.isSet():
+                    break
                 if len(line.strip()) == 0 or line.startswith('#'):
                     continue
                 try:

@@ -9,17 +9,17 @@ from .ProDBApi import cache_clear_all as api_cache_clear_all
 class Dispatcher(object):
     @property
     def config(self):
-        from ProDB.App import App
+        from .App import App
         return App().config
 
     @property
     def inputq(self):
-        from ProDB.App import App
+        from .App import App
         return App().inputq
 
     @property
     def outputq(self):
-        from ProDB.App import App
+        from .App import App
         return App().outputq
 
     def __init__(self):

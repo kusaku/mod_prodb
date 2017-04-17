@@ -32,7 +32,7 @@ class ARENA_PERIOD:
 class Battle(object):
     @property
     def config(self):
-        from ProDB.App import App
+        from .App import App
         return App().config
 
     @property
@@ -64,6 +64,7 @@ class Battle(object):
         self._inputq = queue.Queue()
         self._stop_event = threading.Event()
         self._thread = None
+        self._loop = None
         self._lock = threading.Lock()
         self._last_atime = time.time()
         self._counter = 0
@@ -102,9 +103,10 @@ class Battle(object):
     def thread(self):
         Logger.debug('Started')
 
-        self.loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self.loop)
-        self.loop.set_exception_handler(lambda *args: None)
+        self._loop = asyncio.new_event_loop()
+        self._loop.set_exception_handler(lambda *args: None)
+
+        asyncio.set_event_loop(self._loop)
 
         while not self._stop_event.wait(timeout=0.01):
             try:
@@ -123,7 +125,7 @@ class Battle(object):
                 with self._lock:
                     self._update_post()
 
-        self.loop.close()
+        self._loop.close()
 
         Logger.debug('Finished')
 
@@ -290,7 +292,7 @@ class Battle(object):
         new_tasks = [v for v in self._get_tasks_of(post)]
 
         future = asyncio.wait(new_tasks, timeout=self.config.battle_poll_timeout, return_when=asyncio.FIRST_EXCEPTION)
-        done_tasks, pending_tasks = self.loop.run_until_complete(future)
+        done_tasks, pending_tasks = self._loop.run_until_complete(future)
 
         if len(pending_tasks) > 0:
             is_timeout = True
