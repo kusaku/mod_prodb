@@ -1,5 +1,4 @@
 import functools
-import os
 
 import requests
 
@@ -21,7 +20,8 @@ def getAuthToken():
 
 @functools.lru_cache()
 def getPlayer(cid):
-    url = 'https://prodb.tet.io/api/player-gameaccounts?gamePlatform=a5480e62-61e4-4091-83ca-2ab364f1d645&account={}'.format(cid)
+    url = 'https://prodb.tet.io/api/player-gameaccounts?gamePlatform=a5480e62-61e4-4091-83ca-2ab364f1d645&account={}'.format(
+        cid)
     Logger.debug('Query GET {}'.format(url))
     headers = {'X-Auth-Token': getAuthToken(), 'Accept': 'application/json'}
     resp = requests.get(url, headers=headers)
@@ -34,7 +34,8 @@ def getPlayer(cid):
 def getSquads(*players_keys):
     assert len(players_keys) > 0, 'getSquads - no cids passed'
     players_keys = ','.join(players_keys)
-    url = 'https://prodb.tet.io/api/team-squads?gamePlatform=a5480e62-61e4-4091-83ca-2ab364f1d645&players={}'.format(players_keys)
+    url = 'https://prodb.tet.io/api/team-squads?gamePlatform=a5480e62-61e4-4091-83ca-2ab364f1d645&players={}'.format(
+        players_keys)
     Logger.debug('Query GET {}'.format(url))
     headers = {'X-Auth-Token': getAuthToken(), 'Accept': 'application/json'}
     resp = requests.get(url, headers=headers)
@@ -47,7 +48,8 @@ def getSquads(*players_keys):
 def getMatches(*squads_keys):
     assert len(squads_keys) > 0, 'getMatche - no squads_keys passed'
     squads_keys = ','.join(squads_keys)
-    url = 'https://prodb.tet.io/api/matches?status=open,live&sort=-startTime&squads,verticalPosition&squads={}'.format(squads_keys)
+    url = 'https://prodb.tet.io/api/matches?status=open,live&sort=-startTime&squads,verticalPosition&squads={}'.format(
+        squads_keys)
     Logger.debug('Query GET {}'.format(url))
     headers = {'X-Auth-Token': getAuthToken(), 'Accept': 'application/json'}
     resp = requests.get(url, headers=headers)
@@ -76,33 +78,16 @@ def getStats(round_match_key):
     return resp.json()
 
 
-def postStats(key, post_data, is_patch):
-    try:
-        from .App import App
-
-        if App().config.mockpost:
-            if not os.path.exists('mockpost'):
-                os.makedirs('mockpost')
-            fname = 'mockpost/arena-{}.json'.format(key)
-            with open(fname, 'at') as fh:
-                Logger.info('[mock] Post data is written to {}'.format(fname))
-                fh.write('{}\n'.format(post_data))
-
-        else:
-            url = 'https://prodb.tet.io/api/match-rounds/{}/stats'.format(key)
-            headers = {'X-Auth-Token': getAuthToken(), 'Content-Type': 'application/json', 'Accept': 'application/json'}
-
-            if is_patch:
-                Logger.debug('Query PATCH {}'.format(url))
-                resp = requests.patch(url, data=post_data, headers=headers)
-            else:
-                Logger.debug('Query POST {}'.format(url))
-                resp = requests.post(url, data=post_data, headers=headers)
-
-            assert resp.status_code == 201, 'postStats - bad status: {}'.format(resp.status_code)
-
-    except Exception as ex:
-        Logger.exception('Exception: {}'.format(repr(ex.args[0])))
+def postStats(key, post_json, is_patch):
+    url = 'https://prodb.tet.io/api/match-rounds/{}/stats'.format(key)
+    headers = {'X-Auth-Token': getAuthToken(), 'Content-Type': 'application/json', 'Accept': 'application/json'}
+    if is_patch:
+        Logger.debug('Query PATCH {}'.format(url))
+        resp = requests.patch(url, data=post_json, headers=headers)
+    else:
+        Logger.debug('Query POST {}'.format(url))
+        resp = requests.post(url, data=post_json, headers=headers)
+    assert resp.status_code == 201, 'postStats - bad status: {}'.format(resp.status_code)
 
 
 def cache_clear_all():

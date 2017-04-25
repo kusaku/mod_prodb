@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import random
 import threading
 import time
@@ -16,6 +17,7 @@ async def run_in_executor(func, *args):
     return await loop.run_in_executor(App().poller_executor, func, *args)
 
 
+@functools.lru_cache()
 def getRoundKeyByPlayerCIDs_mock(*cids):
     time.sleep(random.random())
     result = str(uuid.uuid4())
@@ -96,6 +98,7 @@ async def getSquadInfoByPlayerCIDs(cids):
     return squads_info
 
 
+@functools.lru_cache()
 def getSquadKeyByPlayerCIDs_mock(*cids):
     time.sleep(random.random())
     result = str(uuid.uuid4())
@@ -115,6 +118,7 @@ async def getSquadKeyByPlayerCIDs(cids):
     return key
 
 
+@functools.lru_cache()
 def getSquadNameByPlayerCIDs_mock(*cids):
     time.sleep(random.random())
     result = str(uuid.uuid4())
@@ -134,6 +138,7 @@ async def getSquadNameByPlayerCIDs(cids):
     return name
 
 
+@functools.lru_cache()
 def getPlayerKeyByPlayerCID_mock(cid):
     time.sleep(random.random())
     result = str(uuid.uuid4())

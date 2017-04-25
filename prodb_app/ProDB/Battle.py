@@ -1,11 +1,8 @@
 import asyncio
 import copy
-import json
 import queue
 import threading
 import time
-
-import jsonpatch
 
 from .Logger import Logger
 from .ProxyTypes import ProxyPlayer, ProxyRound, ProxyTeam
@@ -41,7 +38,7 @@ class Battle(object):
 
     @property
     def is_finished(self):
-        return time.time() - self._last_atime > self.config.battle_finish_timeout and not self._post_is_updated
+        return time.time() - self._last_atime > self.config.battle_finish_timeout and not self.is_post_updated
 
     @property
     def is_consistent(self):
@@ -50,7 +47,7 @@ class Battle(object):
 
     @property
     def is_post_updated(self):
-        return self._post_is_updated
+        return self._post != self._post_old
 
     @property
     def is_post_firsttime(self):
@@ -73,21 +70,12 @@ class Battle(object):
         self._post_old = dict()
         self._post_key = str()
         self._post_needs_update = False
-        self._post_is_updated = False
 
     def get_post(self):
         # deliver post data, clear updated status
         with self._lock:
-            if self.is_post_firsttime:
-                # return full post
-                post = self._post_key, json.dumps(self._post), False
-            else:
-                # return json patch post - changes only
-                post = self._post_key, jsonpatch.make_patch(self._post_old, self._post).to_string(), True
-
             self._post_old = copy.deepcopy(self._post)
-            self._post_is_updated = False
-            return post
+            return self._post_key, self._post
 
     def start(self):
         self._stop_event.clear()
@@ -198,7 +186,6 @@ class Battle(object):
         self._post_needs_update = self._post_needs_update or _old_data != self._data
 
         # self._post_needs_update = True
-        # self._post_is_updated = True
         # Logger.warn(json.dumps(self._data, indent=4))
         # Logger.warn('Is finished? {!r}'.format(self.is_finished))
         # Logger.warn('Is consistent? {!r}'.format(self.is_consistent))
@@ -305,18 +292,13 @@ class Battle(object):
                 task.cancel()
             if is_timeout:
                 Logger.error('Timeout {}s querying all data'.format(self.config.battle_poll_timeout))
-            self._post_needs_update = False
 
         else:
             try:
                 self._set_result_to(post, done_tasks)
             except Exception as ex:
                 Logger.error("Error '{}'".format(next(iter(ex.args), type(ex).__name__)))
-                self._post_needs_update = False
             else:
                 self._post_key = post.pop('key')
                 self._post = post
                 self._post_needs_update = False
-                self._post_is_updated = self._post_is_updated or self._post_old != self._post
-
-                # Logger.error(repr(self._post_is_updated))
