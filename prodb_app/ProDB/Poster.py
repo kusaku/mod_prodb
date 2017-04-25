@@ -86,7 +86,7 @@ class Poster(object):
         except Exception as ex:
             Logger.error('Exception: {}'.format(repr(ex.args[0])))
             with self.outputq.mutex:
-                self.outputq.queue.appendLeft((key, post))
+                self.outputq.queue.appendleft((key, post))
 
     async def _poster(self):
         from .App import App
