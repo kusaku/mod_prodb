@@ -15,6 +15,8 @@ def Config(args):
         'cache_clear_timeout': 60.0,
         'battle_finish_timeout': 20.0,
         'battle_poll_timeout': 10.0,
+        'pro_db_url': 'https://prodb.tet.io/api/',
+        'pro_db_platform': 'a5480e62-61e4-4091-83ca-2ab364f1d645',
         'pro_db_user': 'wot-stats',
         'pro_db_secret': '38o5diufjfqct6gm2chg1hnmncociqf0leg8qq8',
         'max_poster_workers': 4,

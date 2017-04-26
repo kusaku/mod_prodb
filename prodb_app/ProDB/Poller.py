@@ -6,7 +6,7 @@ import time
 import uuid
 
 from .Logger import Logger
-from .ProDBApi import getMatches, getPlayer, getRoundsInfo, getSquads
+from .ProDBApi import getMatches, getPlayer, getMatchDetails, getSquads
 
 thread_lock = threading.Lock()
 
@@ -49,12 +49,10 @@ async def getRoundKeyByPlayerCIDs(team1_cids, team2_cids):
 
         assert len(matches_keys) > 0, 'No ProDB info for open Matches [{}] vs [{}]'.format(','.join(team1_cids), ','.join(team1_cids))
 
-        rounds_tasks = [run_in_executor(getRoundsInfo, m_k) for m_k in matches_keys]
-        rounds_infos = [r_i for rs_i in await asyncio.gather(*rounds_tasks) for r_i in rs_i]
+        mdetails_tasks = [run_in_executor(getMatchDetails, m_k) for m_k in matches_keys]
+        rounds_infos = [r_i for md_i in await asyncio.gather(*mdetails_tasks) for r_i in md_i.get('rounds')]
 
         assert len(rounds_infos) > 0, 'No ProDB info for open Rounds [{}] vs [{}]'.format(','.join(team1_cids), ','.join(team1_cids))
-
-        rounds_infos = sorted(rounds_infos, key=lambda x: x.get('roundNumber'))
 
         # todo need to detect here most relevant round
         key = next((r_i.get('key') for r_i in rounds_infos if r_i.get('roundStatus') in ('live', 'open')), None)
