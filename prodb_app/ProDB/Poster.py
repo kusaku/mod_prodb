@@ -1,15 +1,19 @@
 import asyncio
 import json
 import os
-import random
+import queue
 import threading
-import time
 
 import jsonpatch
 
 from .Logger import Logger
-from .ProDBApi import postStats
+from .ProDBApi import postMatchRounds, postMatchRoundsСontestant, postMathcRoundStats
 
+
+class POST_TYPE:
+    POST_ROUND_STATUS = 1
+    POST_ROUND_RESULT = 2
+    POST_ROUND_STATISTICS = 3
 
 class Poster(object):
     @property
@@ -22,18 +26,23 @@ class Poster(object):
         from .App import App
         return App().outputq
 
+    @property
+    def executor(self):
+        from .App import App
+        return App().poster_executor
+
     def __init__(self):
         self._stop_event = threading.Event()
         self._thread_lock = threading.Lock()
         self._thread = None
         self._loop = None
         self._futures = set()
-        self._storage = dict()
+        self._stats_storage = dict()
 
     def start(self):
         self._stop_event.clear()
         self._futures = set()
-        self._storage = dict()
+        self._stats_storage = dict()
         self._thread = threading.Thread(target=self.thread, name='Poster')
         self._thread.daemon = True
         self._thread.start()
@@ -52,10 +61,54 @@ class Poster(object):
             self._loop.close()
         Logger.debug('Finished')
 
-    def _post(self, key, post):
+    def _post_round_status(self, key, post):
+        try:
+            post_json = json.dumps(post)
+
+            from .App import App
+
+            if App().config.mockpost:
+                if not os.path.exists('mockpost'):
+                    os.makedirs('mockpost')
+                fname = 'mockpost/status-{}.json'.format(key)
+                with open(fname, 'at') as fh:
+                    Logger.info('[mock] Round status data is written to {}'.format(fname))
+                    fh.write('{}\n'.format(post_json))
+
+            else:
+                postMatchRounds(key, post_json)
+
+        except Exception as ex:
+            Logger.error('Exception in _post_round_status: {}'.format(repr(ex.args[0])))
+            with self.outputq.mutex:
+                self.outputq.queue.appendleft((POST_TYPE.POST_ROUND_STATUS, key, post))
+
+    def _post_round_result(self, key, post):
+        try:
+            post_json = json.dumps(post)
+
+            from .App import App
+
+            if App().config.mockpost:
+                if not os.path.exists('mockpost'):
+                    os.makedirs('mockpost')
+                fname = 'mockpost/result-{}.json'.format(key)
+                with open(fname, 'at') as fh:
+                    Logger.info('[mock] Round result data is written to {}'.format(fname))
+                    fh.write('{}\n'.format(post_json))
+            else:
+                postMatchRoundsСontestant(key, post_json)
+
+        except Exception as ex:
+            Logger.error('Exception in _post_round_status: {}'.format(repr(ex.args[0])))
+            with self.outputq.mutex:
+                self.outputq.queue.appendleft((POST_TYPE.POST_ROUND_RESULT, key, post))
+
+
+    def _post_round_statistics(self, key, post):
         try:
             with self._thread_lock:
-                last_post = self._storage.get(key)
+                last_post = self._stats_storage.get(key)
 
             if last_post is not None:
                 is_patch = True
@@ -64,42 +117,55 @@ class Poster(object):
                 is_patch = False
                 post_json = json.dumps(post)
 
-            time.sleep(random.random())
-            assert random.random() > 0.3, 'azazaza!'
-
             from .App import App
 
             if App().config.mockpost:
                 if not os.path.exists('mockpost'):
                     os.makedirs('mockpost')
-                fname = 'mockpost/arena-{}.json'.format(key)
+                fname = 'mockpost/statistics-{}.json'.format(key)
                 with open(fname, 'at') as fh:
-                    Logger.info('[mock] Post data is written to {}'.format(fname))
+                    Logger.info('[mock] Round statistics data is written to {}'.format(fname))
                     fh.write('{}\n'.format(post_json))
 
             else:
-                postStats(key, post_json, is_patch)
+                postMathcRoundStats(key, post_json, is_patch)
 
             with self._thread_lock:
-                self._storage[key] = post
+                self._stats_storage[key] = post
 
         except Exception as ex:
-            Logger.error('Exception: {}'.format(repr(ex.args[0])))
+            Logger.error('Exception in _post_round_statistics: {}'.format(repr(ex.args[0])))
             with self.outputq.mutex:
-                self.outputq.queue.appendleft((key, post))
+                self.outputq.queue.appendleft((POST_TYPE.POST_ROUND_STATISTICS, key, post))
 
     async def _poster(self):
-        from .App import App
         while not self._stop_event.isSet():
+
             futures = set()
+
             while not self._stop_event.isSet() and len(futures) < self.config.max_poster_workers:
-                msg = self.outputq.get()
-                if msg is None:
-                    continue
-                key, post = msg
-                futures.add(self._loop.run_in_executor(App().poster_executor, self._post, key, post))
-                self.outputq.task_done()
+                try:
+                    msg = self.outputq.get(block=False)
+
+                    if msg is None:
+                        continue
+
+                    post_type, *args = msg
+
+                    if post_type == POST_TYPE.POST_ROUND_STATUS:
+                        futures.add(self._loop.run_in_executor(self.executor, self._post_round_status, *args))
+                    elif post_type == POST_TYPE.POST_ROUND_RESULT:
+                        futures.add(self._loop.run_in_executor(self.executor, self._post_round_result, *args))
+                    elif post_type == POST_TYPE.POST_ROUND_STATISTICS:
+                        futures.add(self._loop.run_in_executor(self.executor, self._post_round_statistics, *args))
+
+                except queue.Empty:
+                    pass
+
             gathered_future = asyncio.gather(*futures, return_exceptions=True)
+
+            futures.clear()
+
             if not self._stop_event.isSet():
                 await gathered_future
             else:

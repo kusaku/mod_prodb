@@ -1,11 +1,15 @@
 import asyncio
 import copy
+import datetime
 import queue
 import threading
 import time
 
+from ProDB import Poller
+from ProDB import ProDBApi
+from ProDB.Poster import POST_TYPE
 from .Logger import Logger
-from .ProxyTypes import ProxyPlayer, ProxyRound, ProxyTeam
+from .ProxyTypes import ProxyPlayer, ProxyTeam
 
 
 class MSG_TYPE:
@@ -33,28 +37,28 @@ class Battle(object):
         return App().config
 
     @property
+    def outputq(self):
+        from .App import App
+        return App().outputq
+
+    @property
     def queue(self):
         return self._inputq
 
     @property
     def is_finished(self):
-        return time.time() - self._last_atime > self.config.battle_finish_timeout and not self.is_post_updated
+        return time.time() - self._last_atime > self.config.battle_finish_timeout
 
     @property
     def is_consistent(self):
         return len(self._data.get('stats')) > 0 and len(self._data.get('players')) > 0 and \
                set(self._data.get('stats').keys()) == set(self._data.get('players').keys())
 
-    @property
-    def is_post_updated(self):
-        return self._post != self._post_old
-
-    @property
-    def is_post_firsttime(self):
-        return len(self._post_old) == 0
-
-    def external_data_updated(self):
-        self._post_needs_update = True
+    def force_update_all(self):
+        self._round_info = None
+        self._round_status_needs_update = True
+        self._round_results_needs_update = False  # sic!
+        self._round_statistics_needs_update = True
 
     def __init__(self, aid):
         self._aid = aid
@@ -65,17 +69,12 @@ class Battle(object):
         self._lock = threading.Lock()
         self._last_atime = time.time()
         self._counter = 0
+        self._round_info = None
+        self._round_status_needs_update = True
+        self._round_results_needs_update = False  # sic!
+        self._round_statistics_needs_update = True
         self._data = dict(period=dict(), stats=dict(), players=dict())
-        self._post = dict()
-        self._post_old = dict()
-        self._post_key = str()
-        self._post_needs_update = False
-
-    def get_post(self):
-        # deliver post data, clear updated status
-        with self._lock:
-            self._post_old = copy.deepcopy(self._post)
-            return self._post_key, self._post
+        self._start_time = datetime.datetime.now().isoformat() + 'Z'
 
     def start(self):
         self._stop_event.clear()
@@ -104,14 +103,19 @@ class Battle(object):
                     continue
 
                 self._process(msg)
-                self._inputq.task_done()
 
             except queue.Empty:
                 pass
 
-            if self._post_needs_update:
-                with self._lock:
-                    self._update_post()
+            with self._lock:
+                if self._round_info is None:
+                    self._update_round_info()
+                if self._round_status_needs_update:
+                    self._update_round_status()
+                if self._round_results_needs_update:
+                    self._update_round_result()
+                if self._round_statistics_needs_update:
+                    self._update_round_statistics()
 
         self._loop.close()
 
@@ -135,6 +139,13 @@ class Battle(object):
             if msg.type in (MSG_TYPE.UPDATE_STATS, MSG_TYPE.UPDATE_BASE_STATE):
                 stats = self._data.get('stats').setdefault(str(msg.cid), {})
                 stats.update(msg.data.get('stats_data', {}))
+
+        self._round_status_needs_update |= _old_data.get('period').get('period') != self._data.get('period').get('period')
+
+        self._round_results_needs_update |=_old_data.get('period').get('period') == ARENA_PERIOD.BATTLE and \
+                                           self._data.get('period').get('period') == ARENA_PERIOD.AFTERBATTLE
+
+        self._round_statistics_needs_update |= _old_data != self._data
 
         # Mock cids
         #
@@ -182,17 +193,101 @@ class Battle(object):
         #         }
         #     }
         # )
-
-        self._post_needs_update = self._post_needs_update or _old_data != self._data
-
-        # self._post_needs_update = True
+        #
+        # self._round_info_needs_update = True
         # Logger.warn(json.dumps(self._data, indent=4))
         # Logger.warn('Is finished? {!r}'.format(self.is_finished))
         # Logger.warn('Is consistent? {!r}'.format(self.is_consistent))
-        # Logger.warn('Does post need update? {!r}'.format(self._post_needs_update))
+        # Logger.warn('Does post need update? {!r}'.format(self._round_info_needs_update))
         # Logger.warn(('need_update', self._need_update_post))
 
-    # utulity to return tasks list from structure
+    def _update_round_info(self):
+        if not self.is_consistent:
+            return
+
+        team1_cids = [cid for cid, player in self._data.get('players', {}).items() if player.get('team') == 1]
+        team2_cids = [cid for cid, player in self._data.get('players', {}).items() if player.get('team') == 2]
+
+        try:
+            # round_info_task = Poller.getMatchRoundByPlayerCIDs(team1_cids, team2_cids)
+            # self._round_info = self._loop.run_until_complete(round_info_task)
+            self._round_info = Poller.getMatchRoundByPlayerCIDs(team1_cids, team2_cids)
+        except Exception as ex:
+            Logger.error("Error '{}'".format(next(iter(ex.args), type(ex).__name__)))
+
+    def _update_round_status(self):
+        if self._round_info is None:
+            return
+
+        arena_period = self._data.get('period').get('period')
+
+        round_status = {
+            ARENA_PERIOD.PREBATTLE: 'open',
+            ARENA_PERIOD.BATTLE: 'live',
+            ARENA_PERIOD.AFTERBATTLE: 'finished',
+        }.get(arena_period)
+
+        post = {
+            'roundNumber': self._round_info.get('roundNumber'),
+            'gameVersionMap': self._round_info.get('gameVersionMap').get('gameVersionKey'),
+            'roundStatus': round_status,
+            'startTime': self._start_time,
+        }
+
+        match_round_key = self._round_info.get('key')
+        self.outputq.put((POST_TYPE.POST_ROUND_STATUS, match_round_key, post))
+        self._round_status_needs_update = False
+
+    def _update_round_result(self):
+        if self._round_info is None:
+            return
+
+        # arena_period = self._data.get('period').get('period')
+        # match_round_key = self._round_info.get('key')
+        # winner_team, finish_reason = self._data.get('period').get('periodAdditionalInfo', (0, 0))
+
+        winner_team = 1
+        looser_team = winner_team % 2 + 1
+
+        winner_team_cids = [cid for cid, player in self._data.get('players', {}).items() if player.get('team') == winner_team]
+        looser_team_cids = [cid for cid, player in self._data.get('players', {}).items() if player.get('team') == looser_team]
+
+        # mrdetails_task = Poller.getMatchRoundDetailsByKey(match_round_key)
+
+        from ProDB.App import App
+
+        # mrdetails_task = Poller.getMatchRoundDetailsByKey(match_round_key)
+        mrdetails_task = self._loop.run_in_executor(App().poller_executor, ProDBApi.getMatchDetails, '21a987d6-7d73-46ba-aa0d-e08c3c2033b8')
+        winner_team_key_task = Poller.getTeamSquadKeyByPlayerCIDs(winner_team_cids)
+        looser_team_key_task = Poller.getTeamSquadKeyByPlayerCIDs(looser_team_cids)
+        maintask = asyncio.gather(mrdetails_task, winner_team_key_task, looser_team_key_task)
+        mrdetails, winner_team_key, looser_team_key = self._loop.run_until_complete(maintask)
+
+        # rss = [ProDBApi.getMatchDetails(m.get('key')).get('rounds') for m in ProDBApi.getMatches(winner_team_key, looser_team_key)]
+        #
+        # def u(k):
+        #     try:
+        #         ProDBApi.getMatchRoundsDetails(k)
+        #         return k
+        #     except Exception as e:
+        #         return e.args
+        #
+        # k = [u(r.get('key')) for rs in rss for r in rs]
+        #
+        # Logger.warn(k)
+        #
+        #
+
+        contestants = mrdetails.get('contestants')
+
+        winner_contestant_key = next(iter(c.get('key') for c in contestants if c.get('tournamentContestant').get('squad').get('key') == winner_team_key))
+        looser_contestant_key = next(iter(c.get('key') for c in contestants if c.get('tournamentContestant').get('squad').get('key') == looser_team_key))
+
+        self.outputq.put((POST_TYPE.POST_ROUND_RESULT, winner_contestant_key, {'gameResult': 'win', 'gameRole': None, 'score': 0}))
+        self.outputq.put((POST_TYPE.POST_ROUND_RESULT, looser_contestant_key, {'gameResult': 'loss', 'gameRole': None, 'score': 0}))
+        self._round_results_needs_update = False
+
+    # utility to return tasks list from structure
     def _get_tasks_of(self, struct):
         if isinstance(struct, asyncio.Task):
             yield struct
@@ -203,7 +298,7 @@ class Battle(object):
             for v in struct:
                 yield from self._get_tasks_of(v)
 
-    # utulity to set tasks result to structure
+    # utility to set tasks result to structure
     def _set_result_to(self, struct, completed):
         if isinstance(struct, dict):
             for k, v in struct.items():
@@ -215,9 +310,8 @@ class Battle(object):
             for v in struct:
                 self._set_result_to(v, completed)
 
-    def _update_post(self):
-
-        if not self.is_consistent:
+    def _update_round_statistics(self):
+        if self._round_info is None:
             return
 
         proxy_team_1 = ProxyTeam(1, self._data)
@@ -264,11 +358,10 @@ class Battle(object):
                 }
             })
 
-        proxy_arena = ProxyRound(self._data)
-
         post = {
-            'key': proxy_arena.id,
-            'meta': dict(),
+            'meta': {
+                'arenaId': self._aid
+            },
             'contestants': {
                 'teams': teams,
                 'players': players,
@@ -299,6 +392,6 @@ class Battle(object):
             except Exception as ex:
                 Logger.error("Error '{}'".format(next(iter(ex.args), type(ex).__name__)))
             else:
-                self._post_key = post.pop('key')
-                self._post = post
-                self._post_needs_update = False
+                match_round_key = self._round_info.get('key')
+                self.outputq.put((POST_TYPE.POST_ROUND_STATISTICS, match_round_key, post))
+                self._round_statistics_needs_update = False

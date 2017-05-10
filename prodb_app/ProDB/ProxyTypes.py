@@ -7,12 +7,12 @@ class ProxyTeam:
     @property
     def id(self):
         cids = [cid for cid, player in self.data.get('players', {}).items() if player.get('team') == self.index]
-        return asyncio.ensure_future(Poller.getSquadKeyByPlayerCIDs(cids))
+        return asyncio.ensure_future(Poller.getTeamSquadKeyByPlayerCIDs(cids))
 
     @property
     def name(self):
         cids = [cid for cid, player in self.data.get('players', {}).items() if player.get('team') == self.index]
-        return asyncio.ensure_future(Poller.getSquadNameByPlayerCIDs(cids))
+        return asyncio.ensure_future(Poller.getTeamSquadNameByPlayerCIDs(cids))
 
     @property
     def attack_defence(self):
@@ -86,4 +86,4 @@ class ProxyRound:
     def id(self):
         team1_cids = [cid for cid, player in self.data.get('players', {}).items() if player.get('team') == 1]
         team2_cids = [cid for cid, player in self.data.get('players', {}).items() if player.get('team') == 2]
-        return asyncio.ensure_future(Poller.getRoundKeyByPlayerCIDs(team1_cids, team2_cids))
+        return asyncio.ensure_future(Poller.getMatchRoundKeyByPlayerCIDs(team1_cids, team2_cids))

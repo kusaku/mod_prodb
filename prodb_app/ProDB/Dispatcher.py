@@ -17,11 +17,6 @@ class Dispatcher(object):
         from .App import App
         return App().inputq
 
-    @property
-    def outputq(self):
-        from .App import App
-        return App().outputq
-
     def __init__(self):
         self._pool = None
         self._stop_event = threading.Event()
@@ -81,10 +76,6 @@ class Dispatcher(object):
         while not self._stop_event.wait(0.01):
 
             for aid, battle in list(self._pool.items()):
-                if battle.is_post_updated:
-                    msg = battle.get_post()
-                    self.outputq.put(msg)
-
                 if battle.is_finished:
                     # Logger.info('Finishing Battle {}'.format(str(aid)[-5:]))
                     battle.stop()
@@ -102,6 +93,6 @@ class Dispatcher(object):
                 api_cache_clear_all()
                 last_clear_cache_time = time.time()
                 for battle in self._pool.values():
-                    battle.external_data_updated()
+                    battle.force_update_all()
 
         Logger.debug('Finished')
