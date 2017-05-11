@@ -123,9 +123,9 @@ class Tracking(CallbackDelayer):
         vs = battleResults.get('vehicles', dict())
         arenadata = self.arenadata
         stats = arenadata['stats'] = dict()
-        for vid, vehicle in self.arena.vehicles.iteritems():
+        for cid, player in self.players.iteritems():
+            vid = player.get('vid')
             ps = next(iter(vs.get(vid, list())), dict())
-            cid = ps.get('accountDBID', 0)
             stats[cid] = dict()
             stats[cid][PlayerStats.DAMAGE_DONE] = ps.get('damageDealt', 0) + ps.get('sniperDamageDealt', 0)
             stats[cid][PlayerStats.DAMAGE_BLOCKED] = ps.get('damageBlockedByArmor', 0)
