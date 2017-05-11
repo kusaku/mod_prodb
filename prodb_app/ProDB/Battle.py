@@ -55,7 +55,7 @@ class Battle(object):
                set(self._data.get('stats').keys()) == set(self._data.get('players').keys())
 
     def force_update_all(self):
-        self._round_info = None
+        self._round_info_needs_update = True
         self._round_status_needs_update = True
         self._round_results_needs_update = False  # sic!
         self._round_statistics_needs_update = True
@@ -70,6 +70,7 @@ class Battle(object):
         self._last_atime = time.time()
         self._counter = 0
         self._round_info = None
+        self._round_info_needs_update = True
         self._round_status_needs_update = True
         self._round_results_needs_update = False  # sic!
         self._round_statistics_needs_update = True
@@ -95,7 +96,7 @@ class Battle(object):
 
         asyncio.set_event_loop(self._loop)
 
-        while not self._stop_event.wait(timeout=0.01):
+        while not self._stop_event.wait(timeout=0.1):
             try:
                 msg = self._inputq.get(block=False)
 
@@ -108,12 +109,12 @@ class Battle(object):
                 pass
 
             with self._lock:
-                if self._round_info is None:
+                if self._round_info_needs_update:
                     self._update_round_info()
-                if self._round_status_needs_update:
-                    self._update_round_status()
-                if self._round_results_needs_update:
-                    self._update_round_result()
+                # if self._round_status_needs_update:
+                #     self._update_round_status()
+                # if self._round_results_needs_update:
+                #     self._update_round_result()
                 if self._round_statistics_needs_update:
                     self._update_round_statistics()
 
@@ -145,7 +146,7 @@ class Battle(object):
         self._round_results_needs_update |=_old_data.get('period').get('period') == ARENA_PERIOD.BATTLE and \
                                            self._data.get('period').get('period') == ARENA_PERIOD.AFTERBATTLE
 
-        self._round_statistics_needs_update |= _old_data != self._data
+        # self._round_statistics_needs_update |= _old_data != self._data
 
         # Mock cids
         #
@@ -209,11 +210,13 @@ class Battle(object):
         team2_cids = [cid for cid, player in self._data.get('players', {}).items() if player.get('team') == 2]
 
         try:
-            # round_info_task = Poller.getMatchRoundByPlayerCIDs(team1_cids, team2_cids)
-            # self._round_info = self._loop.run_until_complete(round_info_task)
-            self._round_info = Poller.getMatchRoundByPlayerCIDs(team1_cids, team2_cids)
+            round_info_task = Poller.getMatchRoundByPlayerCIDs(team1_cids, team2_cids)
+            self._round_info = self._loop.run_until_complete(round_info_task)
+            # self._round_info = Poller.getMatchRoundByPlayerCIDs(team1_cids, team2_cids)
         except Exception as ex:
             Logger.error("Error '{}'".format(next(iter(ex.args), type(ex).__name__)))
+        finally:
+            self._round_info_needs_update = False
 
     def _update_round_status(self):
         if self._round_info is None:
@@ -314,6 +317,8 @@ class Battle(object):
         if self._round_info is None:
             return
 
+        match_round_key = self._round_info.get('key')
+
         proxy_team_1 = ProxyTeam(1, self._data)
         proxy_team_2 = ProxyTeam(2, self._data)
 
@@ -392,6 +397,8 @@ class Battle(object):
             except Exception as ex:
                 Logger.error("Error '{}'".format(next(iter(ex.args), type(ex).__name__)))
             else:
-                match_round_key = self._round_info.get('key')
                 self.outputq.put((POST_TYPE.POST_ROUND_STATISTICS, match_round_key, post))
+            finally:
                 self._round_statistics_needs_update = False
+
+
