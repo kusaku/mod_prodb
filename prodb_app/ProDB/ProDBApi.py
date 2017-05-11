@@ -25,8 +25,7 @@ def getAuthToken():
 
 @functools.lru_cache()
 def getPlayer(cid):
-    url = '{pro_db_url}player-gameaccounts?gamePlatform={pro_db_platform}&account={0}'.format(cid,
-                                                                                              **_get_app_config()._asdict())
+    url = '{pro_db_url}player-gameaccounts?gamePlatform={pro_db_platform}&account={0}'.format(cid, **_get_app_config()._asdict())
     Logger.debug('Query GET {}'.format(url))
     headers = {'X-Auth-Token': getAuthToken(), 'Accept': 'application/json'}
     resp = requests.get(url, headers=headers)
@@ -38,8 +37,7 @@ def getPlayer(cid):
 def getTeamSquads(*players_keys):
     assert len(players_keys) > 0, 'getTeamSquads - no cids passed'
     players_keys = ','.join(players_keys)
-    url = '{pro_db_url}team-squads?gamePlatform={pro_db_platform}&players={0}'.format(players_keys,
-                                                                                      **_get_app_config()._asdict())
+    url = '{pro_db_url}team-squads?gamePlatform={pro_db_platform}&players={0}'.format(players_keys, **_get_app_config()._asdict())
     Logger.debug('Query GET {}'.format(url))
     headers = {'X-Auth-Token': getAuthToken(), 'Accept': 'application/json'}
     resp = requests.get(url, headers=headers)
@@ -51,7 +49,7 @@ def getTeamSquads(*players_keys):
 def getMatches(*squads_keys):
     assert len(squads_keys) > 0, 'getMatche - no squads_keys passed'
     squads_keys = ','.join(squads_keys)
-    url = '{pro_db_url}matches?sort=startTime&squads={0}'.format(squads_keys, **_get_app_config()._asdict())
+    url = '{pro_db_url}matches?status=open,live&sort=startTime&squads={0}'.format(squads_keys, **_get_app_config()._asdict())
     Logger.debug('Query GET {}'.format(url))
     headers = {'X-Auth-Token': getAuthToken(), 'Accept': 'application/json'}
     resp = requests.get(url, headers=headers)
@@ -132,6 +130,9 @@ def cache_clear_all():
     getTeamSquads.cache_clear()
     getMatches.cache_clear()
     getMatchDetails.cache_clear()
+    getMatchRounds.cache_clear()
+    getMatchRoundsDetails.cache_clear()
+    getMatchRoundsStats.cache_clear()
     Logger.debug('ProDB data caches are cleared')
 
 
@@ -141,4 +142,7 @@ def cache_info_all():
         'getTeamSquads': getTeamSquads.cache_info(),
         'getMatches': getMatches.cache_info(),
         'getMatchDetails': getMatchDetails.cache_info(),
+        'getMatchRounds': getMatchRounds.cache_info(),
+        'getMatchRoundsDetails': getMatchRoundsDetails.cache_info(),
+        'getMatchRoundsStats': getMatchRoundsStats.cache_info(),
     }
