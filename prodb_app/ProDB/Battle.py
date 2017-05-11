@@ -146,7 +146,7 @@ class Battle(object):
         self._round_results_needs_update |=_old_data.get('period').get('period') == ARENA_PERIOD.BATTLE and \
                                            self._data.get('period').get('period') == ARENA_PERIOD.AFTERBATTLE
 
-        # self._round_statistics_needs_update |= _old_data != self._data
+        self._round_statistics_needs_update |= _old_data != self._data
 
         # Mock cids
         #
