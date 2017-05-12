@@ -5,8 +5,8 @@ import queue
 import threading
 import time
 
-from ProDB import Poller
 from ProDB import ProDBApi
+from ProDB.Poller import Poller
 from ProDB.Poster import POST_TYPE
 from .Logger import Logger
 from .ProxyTypes import ProxyPlayer, ProxyTeam
@@ -67,6 +67,7 @@ class Battle(object):
         self._stop_event = threading.Event()
         self._thread = None
         self._loop = None
+        self._poller = None
         self._lock = threading.Lock()
         self._last_atime = time.time()
         self._counter = 0
@@ -96,6 +97,8 @@ class Battle(object):
         self._loop.set_exception_handler(lambda *args: None)
 
         asyncio.set_event_loop(self._loop)
+
+        self._poller = Poller()
 
         while not self._stop_event.wait(timeout=0.1):
             try:
@@ -211,9 +214,8 @@ class Battle(object):
         team2_cids = [cid for cid, player in self._data.get('players', {}).items() if player.get('team') == 2]
 
         try:
-            round_info_task = Poller.getMatchRoundByPlayerCIDs(team1_cids, team2_cids)
+            round_info_task = self._poller.getMatchRoundByPlayerCIDs(team1_cids, team2_cids)
             self._round_info = self._loop.run_until_complete(round_info_task)
-            # self._round_info = Poller.getMatchRoundByPlayerCIDs(team1_cids, team2_cids)
         except Exception as ex:
             Logger.error("Error '{}'".format(next(iter(ex.args), type(ex).__name__)))
         finally:
@@ -256,14 +258,14 @@ class Battle(object):
         winner_team_cids = [cid for cid, player in self._data.get('players', {}).items() if player.get('team') == winner_team]
         looser_team_cids = [cid for cid, player in self._data.get('players', {}).items() if player.get('team') == looser_team]
 
-        # mrdetails_task = Poller.getMatchRoundDetailsByKey(match_round_key)
+        # mrdetails_task = self._poller.getMatchRoundDetailsByKey(match_round_key)
 
         from ProDB.App import App
 
-        # mrdetails_task = Poller.getMatchRoundDetailsByKey(match_round_key)
+        # mrdetails_task = self._poller.getMatchRoundDetailsByKey(match_round_key)
         mrdetails_task = self._loop.run_in_executor(App().poller_executor, ProDBApi.getMatchDetails, '21a987d6-7d73-46ba-aa0d-e08c3c2033b8')
-        winner_team_key_task = Poller.getTeamSquadKeyByPlayerCIDs(winner_team_cids)
-        looser_team_key_task = Poller.getTeamSquadKeyByPlayerCIDs(looser_team_cids)
+        winner_team_key_task = self._poller.getTeamSquadKeyByPlayerCIDs(winner_team_cids)
+        looser_team_key_task = self._poller.getTeamSquadKeyByPlayerCIDs(looser_team_cids)
         maintask = asyncio.gather(mrdetails_task, winner_team_key_task, looser_team_key_task)
         mrdetails, winner_team_key, looser_team_key = self._loop.run_until_complete(maintask)
 
@@ -320,8 +322,8 @@ class Battle(object):
 
         match_round_key = self._round_info.get('key')
 
-        proxy_team_1 = ProxyTeam(1, self._data)
-        proxy_team_2 = ProxyTeam(2, self._data)
+        proxy_team_1 = ProxyTeam(self._poller, 1, self._data)
+        proxy_team_2 = ProxyTeam(self._poller, 2, self._data)
 
         teams = [
             {
@@ -343,7 +345,7 @@ class Battle(object):
         players = list()
 
         for cid in self._data.get('players', {}).keys():
-            proxy_player = ProxyPlayer(cid, self._data)
+            proxy_player = ProxyPlayer(self._poller, cid, self._data)
             players.append({
                 'id': proxy_player.id,
                 'vendorId': proxy_player.vendorId,
