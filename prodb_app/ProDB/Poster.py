@@ -110,6 +110,9 @@ class Poster(object):
             with self._thread_lock:
                 last_post = self._stats_storage.get(key)
 
+            if last_post == post:
+                return
+
             if last_post is not None:
                 is_patch = True
                 post_json = jsonpatch.make_patch(last_post, post).to_string()
