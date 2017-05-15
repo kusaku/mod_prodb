@@ -17,14 +17,14 @@ def round_info_mock(*cids):
 
 def squads_info_mock(*cids):
     time.sleep(random.random())
-    squads_info = [{'key': str(uuid.uuid4()), 'team': {'name': 'Team {}'.format(sum(map(int, cids)))}}]
+    squads_info = [{'key': str(uuid.uuid4()), 'team': {'name': 'Team {}'.format(sum(map(int, cids))), 'key': str(uuid.uuid4())}}]
     Logger.debug('[mock] getTeamSquadInfoByPlayerCIDs [{}] = {}'.format(','.join(cids), repr(squads_info)))
     return squads_info
 
 
 def player_info_mock(cid):
     time.sleep(random.random())
-    player_info = [{'key': str(uuid.uuid4()), 'name': 'Player {}'.format(cid)}]
+    player_info = [{'key': str(uuid.uuid4()), 'player': {'name': 'Player {}'.format(cid), 'key': str(uuid.uuid4())}}]
     Logger.debug('[mock] getPlayerKeyByPlayerCID {} = {}'.format(cid, player_info))
     return player_info
 
@@ -168,11 +168,11 @@ class Poller(object):
         return player_info
 
     async def getPlayerKeyByPlayerCID(self, cid):
-        key = next(iter(await self.getPlayerInfoByPlayerCID(cid)), {}).get('key')
+        key = next(iter(await self.getPlayerInfoByPlayerCID(cid)), {}).get('player', {}).get('key')
         assert key is not None, 'No ProDB key for Player {}'.format(cid)
         return key
 
     async def getPlayerNameByPlayerCID(self, cid):
-        name = next(iter(await self.getPlayerInfoByPlayerCID(cid)), {}).get('name')
+        name = next(iter(await self.getPlayerInfoByPlayerCID(cid)), {}).get('player', {}).get('name')
         assert name is not None, 'No ProDB name for Player {}'.format(cid)
         return name
