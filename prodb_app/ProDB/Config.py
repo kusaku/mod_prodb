@@ -30,6 +30,8 @@ def Config(args):
         'mockpoll': bool(args.mockpoll),
         'mockpost': bool(args.mockpost),
         'mockrmq': args.mockrmq,
+
+        'force_post': False,
     }
 
     config_keys = config.keys()

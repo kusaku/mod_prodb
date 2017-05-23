@@ -131,6 +131,10 @@ class Poster(object):
                     fh.write('{}\n'.format(post_json))
 
             else:
+
+                if App().config.force_post:
+                    is_patch = False
+
                 postMathcRoundStats(key, post_json, is_patch)
 
             with self._thread_lock:
