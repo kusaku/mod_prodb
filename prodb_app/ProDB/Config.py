@@ -1,7 +1,7 @@
 import collections
 import json
 
-from .Logger import Logger
+from .Logger import Logger, FileLogger
 
 
 def Config(args):
@@ -12,15 +12,21 @@ def Config(args):
         'rmq_port': 5672,
         'rmq_exchange': 'wot_observer_exchange',
         'rmq_session_dump': None,
+
         'cache_clear_timeout': 60.0,
         'battle_finish_timeout': 20.0,
         'battle_poll_timeout': 10.0,
+
         'pro_db_url': 'https://prodb.tet.io/api/',
         'pro_db_platform': 'a5480e62-61e4-4091-83ca-2ab364f1d645',
         'pro_db_user': 'wot-stats',
         'pro_db_secret': '38o5diufjfqct6gm2chg1hnmncociqf0leg8qq8',
+
         'max_poster_workers': 4,
         'max_poller_workers': 4,
+
+        'remove_player_tags': list(),
+
         'mockpoll': bool(args.mockpoll),
         'mockpost': bool(args.mockpost),
         'mockrmq': args.mockrmq,
@@ -39,6 +45,6 @@ def Config(args):
     else:
         Logger.debug('Loaded config file \'{}\''.format(filepath))
 
-    Logger.debug('Config:\n{}\n{}\n{}'.format('*' * 80, json.dumps(config, indent=4, sort_keys=True), '*' * 80))
+    FileLogger.debug('Config:\n{}\n{}\n{}'.format('*' * 80, json.dumps(config, indent=4, sort_keys=True), '*' * 80))
 
     return collections.namedtuple('Config', sorted(config_keys))(**config)

@@ -27,6 +27,11 @@ class ProxyTeam:
 
 class ProxyPlayer:
     @property
+    def config(self):
+        from .App import App
+        return App().config
+
+    @property
     def id(self):
         return asyncio.ensure_future(self._poller.getPlayerKeyByPlayerCID(self._cid))
 
@@ -36,7 +41,10 @@ class ProxyPlayer:
 
     @property
     def name(self):
-        return str(self._data.get('players', {}).get(self._cid, {}).get('name'))
+        name = str(self._data.get('players', {}).get(self._cid, {}).get('name'))
+        for tag in self.config.remove_player_tags:
+            name = name.replace(tag, '')
+        return name
 
     @property
     def teamId(self):
@@ -47,6 +55,10 @@ class ProxyPlayer:
     @property
     def tank_name(self):
         return str(self._data.get('players', {}).get(self._cid, {}).get('vehicle_name'))
+
+    @property
+    def tank_short_name(self):
+        return str(self._data.get('players', {}).get(self._cid, {}).get('vehicle_short_name'))
 
     @property
     def kills(self):

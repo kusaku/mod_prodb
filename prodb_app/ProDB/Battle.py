@@ -344,7 +344,7 @@ class Battle(object):
 
         players = list()
 
-        for cid in self._data.get('players', {}).keys():
+        for cid in sorted(self._data.get('players', {}).keys()):
             proxy_player = ProxyPlayer(self._poller, cid, self._data)
             players.append({
                 'id': proxy_player.id,
@@ -353,7 +353,8 @@ class Battle(object):
                 'teamId': proxy_player.teamId,
                 'meta': {
                     'tank': {
-                        'name': proxy_player.tank_name
+                        'id': proxy_player.tank_name,
+                        'name': proxy_player.tank_short_name,
                     }
                 },
                 'stats': {

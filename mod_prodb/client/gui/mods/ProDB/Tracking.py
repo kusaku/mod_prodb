@@ -34,7 +34,8 @@ class PlayerStats:
 class Tracking(CallbackDelayer):
     player = property(lambda self: BigWorld.player())
     arena = property(lambda self: getattr(self.player, 'arena', None))
-    vehicle = property(lambda self: self.arena.vehicles.get(self.vid))
+    vehicle = property(lambda self: getattr(self.arena, 'vehicles', {}).get(self.vid))
+
     aid = property(lambda self: getattr(self.player, 'arenaUniqueID', None))
     vid = property(lambda self: getattr(self.player, 'playerVehicleID', None))
     cid = property(lambda self: self.vehicle.get('accountDBID'))
@@ -49,14 +50,15 @@ class Tracking(CallbackDelayer):
                 {
                     'vid': vid,
                     'name': vehicle.get('name'),
-                    'vehicle_name': vehicle.get('vehicleType').name.rpartition(':')[-1],
+                    'vehicle_name': vehicle.get('vehicleType').name,
+                    'vehicle_short_name': vehicle.get('vehicleType').type.shortUserString,
                     'team': vehicle.get('team'),
                     'isAlive': vehicle.get('isAlive'),
                 }
             )
             for vid, vehicle in self.arena.vehicles.iteritems()
         )
-        return {cid: data for cid, data in players if cid > 0 and data.get('vehicle_name') != 'Observer'}
+        return {cid: data for cid, data in players if cid > 0 and 'bserver' in data.get('vehicle_name')}
 
     @property
     def attackingTeam(self):
