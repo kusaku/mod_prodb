@@ -131,7 +131,6 @@ def cache_clear_all():
     getMatchDetails.cache_clear()
     getMatchRounds.cache_clear()
     getMatchRoundsDetails.cache_clear()
-    getMatchRoundsStats.cache_clear()
     Logger.debug('ProDB data caches are cleared')
 
 
@@ -143,5 +142,4 @@ def cache_info_all():
         'getMatchDetails': getMatchDetails.cache_info(),
         'getMatchRounds': getMatchRounds.cache_info(),
         'getMatchRoundsDetails': getMatchRoundsDetails.cache_info(),
-        'getMatchRoundsStats': getMatchRoundsStats.cache_info(),
     }
