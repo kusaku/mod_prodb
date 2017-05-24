@@ -64,6 +64,7 @@ class Battle(object):
     def __init__(self, aid):
         self._aid = aid
         self._inputq = queue.Queue()
+        self._inputq_overflow = False
         self._stop_event = threading.Event()
         self._thread = None
         self._loop = None
@@ -100,7 +101,7 @@ class Battle(object):
 
         self._poller = Poller()
 
-        while not self._stop_event.wait(timeout=0.1):
+        while not self._stop_event.wait(timeout=0.01):
             try:
                 msg = self._inputq.get(block=False)
 
@@ -111,6 +112,16 @@ class Battle(object):
 
             except queue.Empty:
                 pass
+
+            qsize = self._inputq.qsize()
+
+            if not self._inputq_overflow and qsize > 100:
+                self._inputq_overflow = True
+                Logger.error('Queue length is {}'.format(qsize))
+
+            if self._inputq_overflow and qsize < 100:
+                self._inputq_overflow = False
+                Logger.info('Queue length is OK')
 
             with self._lock:
                 if self._round_info_needs_update:
