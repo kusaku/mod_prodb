@@ -58,7 +58,7 @@ class Tracking(CallbackDelayer):
             )
             for vid, vehicle in self.arena.vehicles.iteritems()
         )
-        return {cid: data for cid, data in players if cid > 0 and 'bserver' in data.get('vehicle_name')}
+        return {cid: data for cid, data in players if cid > 0 and 'bserver' not in data.get('vehicle_name')}
 
     @property
     def attackingTeam(self):
