@@ -7,7 +7,7 @@ import threading
 import jsonpatch
 
 from .Logger import Logger
-from .ProDBApi import postMatchRounds, postMatchRoundsСontestant, postMathcRoundStats
+from .ProDBApi import postMatchRounds, postMatchRoundsСontestant, postMatchRoundStats
 
 
 class POST_TYPE:
@@ -100,7 +100,7 @@ class Poster(object):
                 postMatchRoundsСontestant(key, post_json)
 
         except Exception as ex:
-            Logger.error('Exception in _post_round_status: {}'.format(repr(ex.args[0])))
+            Logger.error('Exception in _post_round_result: {}'.format(repr(ex.args[0])))
             with self.outputq.mutex:
                 self.outputq.queue.appendleft((POST_TYPE.POST_ROUND_RESULT, key, post))
 
@@ -131,15 +131,16 @@ class Poster(object):
                     fh.write('{}\n'.format(post_json))
 
             else:
-                postMathcRoundStats(key, post_json, is_patch)
+                postMatchRoundStats(key, post_json, is_patch)
 
             with self._thread_lock:
                 self._stats_storage[key] = post
 
         except Exception as ex:
             Logger.error('Exception in _post_round_statistics: {}'.format(repr(ex.args[0])))
-            with self.outputq.mutex:
-                self.outputq.queue.appendleft((POST_TYPE.POST_ROUND_STATISTICS, key, post))
+            if '412' not in ex.args[0]:
+                with self.outputq.mutex:
+                    self.outputq.queue.appendleft((POST_TYPE.POST_ROUND_STATISTICS, key, post))
 
     async def _poster(self):
         while not self._stop_event.isSet():

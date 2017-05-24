@@ -95,7 +95,6 @@ def getMatchRoundsDetails(match_round_key):
     return resp.json()
 
 
-@functools.lru_cache()
 def getMatchRoundsStats(match_round_key):
     url = '{pro_db_url}match-rounds/{0}/stats'.format(match_round_key, **_get_app_config()._asdict())
     Logger.debug('Query GET {}'.format(url))
@@ -105,7 +104,7 @@ def getMatchRoundsStats(match_round_key):
     return resp.json()
 
 
-def postMathcRoundStats(match_round_key, post_json, is_patch):
+def postMatchRoundStats(match_round_key, post_json, is_patch):
     url = '{pro_db_url}match-rounds/{0}/stats'.format(match_round_key, **_get_app_config()._asdict())
     headers = {'X-Auth-Token': getAuthToken(), 'Content-Type': 'application/json', 'Accept': 'application/json'}
     if is_patch:
@@ -114,7 +113,7 @@ def postMathcRoundStats(match_round_key, post_json, is_patch):
     else:
         Logger.debug('Query POST {}'.format(url))
         resp = requests.post(url, data=post_json, headers=headers)
-    assert resp.status_code == 201, 'postMathcRoundStats - bad status: {}'.format(resp.status_code)
+    assert resp.status_code == 201, 'postMatchRoundStats - bad status: {}'.format(resp.status_code)
 
 
 def postMatchRoundsСontestant(match_round_contestant_key, post_json):
@@ -122,7 +121,7 @@ def postMatchRoundsСontestant(match_round_contestant_key, post_json):
     Logger.debug('Query POST {}'.format(url))
     headers = {'X-Auth-Token': getAuthToken(), 'Content-Type': 'application/json', 'Accept': 'application/json'}
     resp = requests.put(url, data=post_json, headers=headers)
-    assert resp.status_code == 200, 'postMatchСontestantRounds - bad status: {}'.format(resp.status_code)
+    assert resp.status_code == 200, 'postMatchRoundsСontestant - bad status: {}'.format(resp.status_code)
 
 
 def cache_clear_all():
