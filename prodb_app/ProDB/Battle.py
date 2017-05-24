@@ -29,6 +29,21 @@ class ARENA_PERIOD:
     BATTLE = 3
     AFTERBATTLE = 4
 
+    @classmethod
+    def toString(cls, period):
+        if period == cls.IDLE:
+            return 'IDLE'
+        elif period == cls.WAITING:
+            return 'WAITING'
+        elif period == cls.PREBATTLE:
+            return 'PREBATTLE'
+        elif period == cls.BATTLE:
+            return 'BATTLE'
+        elif period == cls.AFTERBATTLE:
+            return 'AFTERBATTLE'
+        else:
+            return 'OTHER'
+
 
 class Battle(object):
     @property
@@ -78,7 +93,9 @@ class Battle(object):
         self._round_results_needs_update = False  # sic!
         self._round_statistics_needs_update = True
         self._data = dict(period=dict(), stats=dict(), players=dict())
+        self._post = dict()
         self._start_time = datetime.datetime.now().isoformat() + 'Z'
+        self._arena_period = ARENA_PERIOD.IDLE
 
     def start(self):
         self._stop_event.clear()
@@ -147,9 +164,10 @@ class Battle(object):
         # update arena (can update player stats when battleresults received)
         if msg.type == MSG_TYPE.UPDATE_ARENA:
             self._data.update(msg.data)
+            self._arena_period = self._data.get('period').get('period')
 
         # do not receive players data after battle
-        if self._data.get('period').get('period') != ARENA_PERIOD.AFTERBATTLE:
+        if self._arena_period != ARENA_PERIOD.AFTERBATTLE:
             # update player stats
             if msg.type in (MSG_TYPE.UPDATE_STATS, MSG_TYPE.UPDATE_BASE_STATE):
                 stats = self._data.get('stats').setdefault(str(msg.cid), {})
@@ -157,7 +175,7 @@ class Battle(object):
 
         self._round_status_needs_update |= _old_data.get('period').get('period') != self._data.get('period').get('period')
 
-        self._round_results_needs_update |=_old_data.get('period').get('period') == ARENA_PERIOD.BATTLE and \
+        self._round_results_needs_update |= _old_data.get('period').get('period') == ARENA_PERIOD.BATTLE and \
                                            self._data.get('period').get('period') == ARENA_PERIOD.AFTERBATTLE
 
         self._round_statistics_needs_update |= _old_data != self._data
@@ -379,7 +397,8 @@ class Battle(object):
 
         post = {
             'meta': {
-                'arenaId': self._aid
+                'arenaId': self._aid,
+                'arenaPeriod': ARENA_PERIOD.toString(self._arena_period)
             },
             'contestants': {
                 'teams': teams,
@@ -411,7 +430,8 @@ class Battle(object):
             except Exception as ex:
                 Logger.error("Error '{}'".format(next(iter(ex.args), type(ex).__name__)))
             else:
-                self.outputq.put((POST_TYPE.POST_ROUND_STATISTICS, match_round_key, post))
+                self._post.update(post)
+                self.outputq.put((POST_TYPE.POST_ROUND_STATISTICS, match_round_key, self._post))
             finally:
                 self._round_statistics_needs_update = False
 

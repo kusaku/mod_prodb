@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import json
 import os
 import queue
@@ -134,13 +135,12 @@ class Poster(object):
                 postMatchRoundStats(key, post_json, is_patch)
 
             with self._thread_lock:
-                self._stats_storage[key] = post
+                self._stats_storage[key] = copy.deepcopy(post)
 
         except Exception as ex:
             Logger.error('Exception in _post_round_statistics: {}'.format(repr(ex.args[0])))
-            if '412' not in ex.args[0]:
-                with self.outputq.mutex:
-                    self.outputq.queue.appendleft((POST_TYPE.POST_ROUND_STATISTICS, key, post))
+            with self.outputq.mutex:
+                self.outputq.queue.appendleft((POST_TYPE.POST_ROUND_STATISTICS, key, post))
 
     async def _poster(self):
         while not self._stop_event.isSet():
