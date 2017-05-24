@@ -118,8 +118,7 @@ class Battle(object):
             if not self._inputq_overflow and qsize > 100:
                 self._inputq_overflow = True
                 Logger.error('Queue length is {}'.format(qsize))
-
-            if self._inputq_overflow and qsize < 100:
+            elif self._inputq_overflow and not qsize > 100:
                 self._inputq_overflow = False
                 Logger.info('Queue length is OK')
 

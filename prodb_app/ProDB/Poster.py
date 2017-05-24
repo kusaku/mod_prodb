@@ -113,14 +113,14 @@ class Poster(object):
             if last_post == post:
                 return
 
-            if last_post is not None:
-                is_patch = True
-                post_json = jsonpatch.make_patch(last_post, post).to_string()
-            else:
+            from .App import App
+
+            if App().config.force_post or last_post is None:
                 is_patch = False
                 post_json = json.dumps(post)
-
-            from .App import App
+            else:
+                is_patch = True
+                post_json = jsonpatch.make_patch(last_post, post).to_string()
 
             if App().config.mockpost:
                 if not os.path.exists('mockpost'):
@@ -131,10 +131,6 @@ class Poster(object):
                     fh.write('{}\n'.format(post_json))
 
             else:
-
-                if App().config.force_post:
-                    is_patch = False
-
                 postMathcRoundStats(key, post_json, is_patch)
 
             with self._thread_lock:
